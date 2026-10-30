@@ -1,0 +1,136 @@
+{
+  "ID": "P11",
+  "Slug": "p11-adversarial-verification",
+  "Title": "Adversarial Validator and Tiny Oracle",
+  "Kind": "preparation",
+  "Stage": "04 · Verification and release",
+  "Hours": 14,
+  "Depends": [
+    "P10"
+  ],
+  "Summary": "Build a transcript checker, hostile fixture suite and exhaustive occupancy-state oracle that independently tests minimum-turn claims.",
+  "Overview": "<p>Build two review tools: a black-box checker for a complete lem-in transcript and a tiny exhaustive optimality oracle. The checker proves legality and completion; the oracle explores joint occupancy states instead of using flow, providing independent evidence about minimum turns on small colonies.</p><p>Reuse P03's declared grammar, P06's move invariants and P10's planner as a system under test. Keep the oracle independent from the time-expanded model and residual engine. The delivered artifact includes reproducible random seeds, named adversarial fixtures, mutation tests and a discrepancy report.</p>",
+  "Reading": [
+    {
+      "Title": "Go testing",
+      "URL": "https://pkg.go.dev/testing",
+      "Section": "Fuzzing; Subtests; Benchmarks",
+      "Why": "Create reproducible generative tests and shrink failures.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Go fuzzing tutorial",
+      "URL": "https://go.dev/doc/tutorial/fuzz",
+      "Section": "Add a fuzz test; Fix the bug; Explore additional resources",
+      "Why": "Learn seed corpus and failure reproduction practices.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Official lem-in examples",
+      "URL": "https://github.com/01-edu/public/blob/master/subjects/lem-in/examples/README.md",
+      "Section": "example00 through example07; badexample00 and badexample01",
+      "Why": "Use upstream examples as compatibility cases, not an exhaustive correctness proof.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Official lem-in audit",
+      "URL": "https://github.com/01-edu/public/blob/master/subjects/lem-in/audit/README.md",
+      "Section": "Functional checks and timing examples",
+      "Why": "Record expected turn ceilings and performance cases honestly.",
+      "Mandatory": true
+    },
+    {
+      "Title": "math/rand package",
+      "URL": "https://pkg.go.dev/math/rand",
+      "Section": "New; NewSource",
+      "Why": "Generate deterministic local test sequences from a recorded seed.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>A transcript contains a normalized accepted-input echo, one empty separator line, then movement lines. Tokens encode only ant ID and destination, so derive each source from replay state. Split after the first hyphen following the ant number; the destination itself may contain hyphens.</p><p>A small oracle can search the finite set of occupancy states. A state is a sorted multiset of room IDs occupied by n indistinguishable ants; repeated IDs are legal only at start/end. For each state, enumerate each ant's wait or adjacent move choices, reject shared tunnel use and invalid next occupancy, sort the next multiset and perform BFS over states. Keep end absorbing. This is a different algorithm from flow.</p><p>State BFS depth is the number of turns. The first all-end state proves minimum turns because every legal next batch was considered. Keep the tiny limit explicit: V≤6 and n≤3 for the academy oracle, plus state/transition budgets. Exceeding a budget means unknown, not no route.</p>",
+  "Spec": "<ol><li>Implement a bounded transcript checker requiring the full echo and exactly one blank separator. Reparse the echoed colony under the published policy, then validate movement spelling, ant IDs, known destination names, no duplicate IDs per line and ID-ascending canonical output.</li><li>Apply P06 batch rules to every movement line. Reject empty movement lines, extra diagnostics, unfinished ants, movement after completion and invalid EOF. Require the accepted echo to match the submitted input after P02 normalization when the original file is supplied.</li><li>Implement <code>Oracle</code> with exhaustive occupancy-state BFS, not P08/P09 calls. Return the first all-end depth or no-route only after complete bounded exhaustion. A budget breach is a distinct error.</li><li>Enumerate wait/move combinations from each old state, enforce undirected edge use and boundary room occupancy independently, then canonicalize indistinguishable ants. End ants only wait. Preserve reproducible parent metadata for a discrepancy witness.</li><li>Cross-check planner turns against oracle turns over every simple labelled graph with V=2..5, fixed terminals 0 and V-1 and n=1..3, within the chosen budgets. Include disconnected graphs. Add fixed-seed random V=6 cases and preserve exact seeds if you run them.</li><li>Include direct edge, single corridor, diamond, bottleneck, cycles, disconnected extras, no route, hyphenated names and P07's greedy trap. Mutate accepted transcripts to target every checker rejection rule.</li><li>The CLI fixture uses s-a-t with three ants. Print <code>oracle_turns=4</code>. Report counts of cases run, mismatches, skipped budget cases and actual command/toolchain; a green scaffold test does not mean this campaign ran.</li></ol>",
+  "Components": [
+    {
+      "Slug": "transcript",
+      "Title": "Parse and replay an untrusted transcript",
+      "Goal": "Check observable behavior without trusting planner internals.",
+      "Before": [
+        "Where is the colony/movement boundary?",
+        "How do you parse a destination containing a hyphen?"
+      ],
+      "Steps": [
+        "Parse the bounded echo and exact separator.",
+        "Validate token syntax and canonical ID order, deriving source rooms from old state.",
+        "Run independent replay and require complete absorption at end."
+      ],
+      "Hint": "L12-west-hall means ant 12 to room west-hall. Splitting the entire token on every hyphen would corrupt a valid destination.",
+      "Trace": "Mutate a valid token to L0-a, duplicate L1 in one line, and append a diagnostic line. Each must be rejected for a distinct reason.",
+      "Gate": "The checker rejects all targeted token and replay mutations while accepting the original valid transcript."
+    },
+    {
+      "Slug": "oracle",
+      "Title": "Search tiny occupancy states exhaustively",
+      "Goal": "Prove small-instance optimality by a different state space.",
+      "Before": [
+        "Why can ant identities be omitted when only the minimum completion time is asked?",
+        "What must be enumerated to make the oracle exact?"
+      ],
+      "Steps": [
+        "Canonicalize a valid occupancy multiset and use it as a visited key.",
+        "Enumerate all wait/neighbor choices for each ant and independently check each full batch.",
+        "BFS the resulting state graph until all-end or complete exhaustion, enforcing explicit budgets."
+      ],
+      "Hint": "Two equal start positions describe two ants, not one. Deduplicating room IDs instead of sorting the full multiset would lose ants.",
+      "Trace": "For two ants on s-a-t, list states at depths 0..3. The first all-end state is at depth 3.",
+      "Gate": "The oracle gets direct-edge, corridor and two-branch minima by exhaustive search without using flow code."
+    },
+    {
+      "Slug": "campaign",
+      "Title": "Run differential and mutation campaigns",
+      "Goal": "Turn correctness claims into reproducible evidence.",
+      "Before": [
+        "What makes two implementations independent enough to catch modelling mistakes?",
+        "How will a random discrepancy be reproduced?"
+      ],
+      "Steps": [
+        "Enumerate all edge masks for small labelled simple graphs.",
+        "Compare no-route outcomes and minimum turns, then replay every planner schedule.",
+        "Record case counts and preserve minimal mismatches; mutate valid schedules to exercise the checker."
+      ],
+      "Hint": "Matching one canned example is weak evidence. A bug that allows two opposing uses of one tunnel may require an intermediate occupancy state to expose it.",
+      "Trace": "For V=2..5 there are 2+8+64+1024=1098 labelled graph masks with fixed endpoints. Across n=1..3, the baseline campaign has 3294 cases before any optional V=6 samples.",
+      "Gate": "The report records zero unexplained mismatches, all budget skips, and at least one mutation caught for every required movement invariant."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo run . testdata/oracle.json\ngo test -run TestDifferential -count=1 ./...\ngo test -fuzz=FuzzTranscript -fuzztime=10s",
+  "Verification": "<ul><li>Oracle s-a-t with n=3: 4 turns. Direct edge with n=3: 3 turns.</li><li>Two length-two branches and n=3: 3 turns. Unreachable end: no-route only after exhaustive search.</li><li>P07 greedy trap has V=8,n=4 and exceeds both the generic V≤6 and n≤3 oracle limits: add a separately budgeted targeted run with an explicit scope extension or a hand/exhaustive cut proof. Never silently run it under a stated n≤3 bound.</li><li>V=2..5,n=1..3 baseline: exactly 3294 graph/ant cases, including disconnected graphs. Count resource skips explicitly.</li><li>Corrupt one field per transcript: duplicate ant, nonedge, repeated undirected tunnel, room collision, early EOF, extra turn, invalid name and echo mismatch.</li><li>Fuzz parser inputs: bounded termination, no panic and no accepted partial model.</li></ul><h2>Exit gate</h2><p>Provide a reproducible report with toolchain, seeds, case counts, discrepancies and skipped-budget counts. Distinguish tested examples from general proof; the oracle complements rather than replaces the P09/P10 correctness arguments.</p>",
+  "Engineering": [
+    "When does state canonicalization preserve an optimization problem and when can it lose important identity information?",
+    "What shared helper would most weaken the independence of the oracle?",
+    "Why is a budget-exhausted oracle result unknown rather than unreachable?",
+    "How can mutation tests reveal that a validator accepts malformed schedules despite good line coverage?",
+    "What kinds of errors can exhaustive tiny cases still miss?",
+    "Why should exact transcript formatting be checked separately from legal movement?",
+    "How would you shrink a random failing colony while preserving the discrepancy?"
+  ],
+  "Practical": [
+    "Count the labelled graph masks for V=4.",
+    "Add an echo-mismatch mutation.",
+    "Parse a movement into west-hall correctly.",
+    "Save a seed and reproduce a generated graph twice.",
+    "Force an oracle budget error and verify it is not no-route.",
+    "Introduce a duplicate ant token and show the checker catches it."
+  ],
+  "Extras": [
+    "Add targeted V=6 random campaigns with fixed seeds and logged budgets.",
+    "Add automatic graph-edge deletion to shrink discrepancies.",
+    "Report invariant-specific mutation detection rates without treating line coverage as correctness.",
+    "Add metamorphic tests for room renaming, edge reversal and irrelevant isolated rooms.",
+    "Compare an independently implemented cut enumerator with the tiny oracle on deadline networks as a third mathematical cross-check."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\";\"io\")\nvar ErrTODO=errors.New(\"TODO: implement independent verification\")\nvar ErrBudget=errors.New(\"oracle budget exhausted\")\ntype Graph struct { Adj [][]int }\ntype Report struct { Turns,Arrived int }\nfunc CheckTranscript(original []byte,transcript io.Reader)(Report,error){ // TODO: bounded echo/token parser and independent replay\n return Report{},ErrTODO\n}\nfunc Oracle(g Graph,start,end,ants,maxStates int)(int,error){ // TODO: exhaustive occupancy-state BFS, no flow engine calls\n return 0,ErrTODO\n}\nfunc Run(args []string,input io.Reader,output io.Writer)error{ // TODO: run tiny fixture and report optimum\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport \"testing\"\nfunc TestOracleAcceptance(t *testing.T){\n t.Skip(\"TODO: remove when implementing oracle; add graph enumeration and transcript mutations\")\n turns,e:=Oracle(Graph{Adj:[][]int{{1},{0,2},{1}}},0,2,3,10000)\n if e!=nil||turns!=4{t.Fatalf(\"%d %v\",turns,e)}\n}\nfunc TestDifferential(t *testing.T){t.Skip(\"TODO: implement the 3294-case campaign and print counts\")}\nfunc FuzzTranscript(f *testing.F){\n f.Add(\"not a transcript\")\n f.Fuzz(func(t *testing.T,s string){t.Skip(\"TODO: bound input, call checker and assert no panic\")})\n}\n",
+    "testdata/oracle.json": "{\"Adj\":[[1],[0,2],[1]],\"Start\":0,\"End\":2,\"Ants\":3}\n"
+  }
+}

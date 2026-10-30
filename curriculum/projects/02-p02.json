@@ -1,0 +1,129 @@
+{
+  "ID": "P02",
+  "Slug": "p02-bounded-file-reader",
+  "Title": "Bounded File Reader",
+  "Kind": "preparation",
+  "Stage": "01 · Go and colony data",
+  "Hours": 10,
+  "Depends": [
+    "P01"
+  ],
+  "Summary": "Build a CLI that reads physical lines safely, preserves accepted input and fails cleanly at size and I/O boundaries.",
+  "Overview": "<p>Build a line inspection tool for colony files. Its job is to read a bounded file, normalize line endings under a stated policy and report numbered lines without interpreting rooms or links. You will isolate transport failures from semantic failures before introducing a grammar.</p><p>Reuse P01's module workflow, returned errors and output tests. The new material is <code>io.Reader</code>, file ownership, EOF, Scanner limits and a transactional output boundary. Deliver the reader package functions, a CLI, boundary fixtures and tests with injected readers and writers.</p>",
+  "Reading": [
+    {
+      "Title": "os package",
+      "URL": "https://pkg.go.dev/os",
+      "Section": "Args; Open; File.Close; Exit",
+      "Why": "Handle the command boundary and own file lifetimes.",
+      "Mandatory": true
+    },
+    {
+      "Title": "io package",
+      "URL": "https://pkg.go.dev/io",
+      "Section": "Reader; ReadAll; LimitReader; Writer",
+      "Why": "Read at most limit+1 bytes and detect a real limit breach.",
+      "Mandatory": true
+    },
+    {
+      "Title": "bufio package",
+      "URL": "https://pkg.go.dev/bufio",
+      "Section": "Scanner; Scanner.Buffer; Scanner.Err; ScanLines",
+      "Why": "Avoid Scanner's default token ceiling and understand CRLF treatment.",
+      "Mandatory": true
+    },
+    {
+      "Title": "strings package",
+      "URL": "https://pkg.go.dev/strings",
+      "Section": "Split; TrimSuffix; NewReader",
+      "Why": "Manipulate line endings without trimming meaningful data.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p><code>io.Reader.Read</code> may return bytes and an error together. EOF is normal only after all returned bytes have been consumed. Small reads do not necessarily mean EOF. Use standard helpers instead of assuming one Read fills a buffer.</p><p>To distinguish exactly-at-limit from over-limit, request at most <code>limit+1</code> bytes and reject if that extra byte exists. A bounded reader returning EOF at the limit cannot alone prove that the source ended there. Scanner token limits are a second, independent limit.</p><pre><code>f, err := os.Open(path)\nif err != nil { return err }\ndefer f.Close() // ownership begins after successful Open\n// Pass f to your reader boundary; do not parse room names here.</code></pre><p>Use injected readers for failure tests. A strings.Reader cannot simulate every filesystem failure, so a tiny custom Reader can return bytes followed by a sentinel error. Do not use goroutines merely because I/O is involved.</p>",
+  "Spec": "<h2>Reader contract</h2><ol><li>Implement <code>ReadDocument(r, limits)</code>. Limits are positive; the academy default is 1 MiB total input and 4096 bytes per physical line, excluding CRLF/LF terminators.</li><li>Accept LF and CRLF. Normalize CRLF to LF, reject any bare CR and NUL. Preserve every other byte, including comments, leading/trailing spaces and non-ASCII bytes; the next project decides grammar validity.</li><li>A final newline is optional. Store logical lines without terminators and an echo string containing the normalized lines joined by LF with exactly one final LF. An empty file returns an empty document; P03 rejects it as a colony.</li><li>Do not invent an empty final line from a final newline. Preserve an actual interior blank line for the parser to reject later. Both byte and line limits apply before further allocation grows beyond the bound.</li><li>The CLI requires one file path and prints numbered lines in the form <code>1: text</code>. Reader, size, usage and writer failures return errors; no partial report is printed before the complete read succeeds.</li><li>Do not close a caller-owned Reader. Run owns the file it opens. Check Scanner.Err if using Scanner; configure its buffer from the line policy.</li></ol><p>No colony validation or pathfinding belongs in this tool. The normalized Echo is a deliberate academy policy; upstream only asks for accepted content to be displayed.</p>",
+  "Components": [
+    {
+      "Slug": "bounded-read",
+      "Title": "Bound the read boundary",
+      "Goal": "Detect transport failures and oversize data before grammar work begins.",
+      "Before": [
+        "How do limit bytes and limit+1 bytes differ?",
+        "What happens if Read returns useful bytes and a non-nil error?"
+      ],
+      "Steps": [
+        "Validate positive limits before allocating.",
+        "Read with a total cap that can observe an extra byte.",
+        "Return no usable Document on a reader failure or limit breach."
+      ],
+      "Hint": "A limit of 4 must accept abcd and reject abcde. Write that test before trying a megabyte file.",
+      "Trace": "Use a custom reader that returns ab and a sentinel failure. The document must not be treated as accepted merely because it contains two bytes.",
+      "Gate": "Tests cover empty, exactly-at-limit, one-byte-over, short reads and injected read failure."
+    },
+    {
+      "Slug": "line-model",
+      "Title": "Model physical lines and echo",
+      "Goal": "Keep normalized echo bytes and parser lines consistent.",
+      "Before": [
+        "Which bytes may normalization change?",
+        "Is a final newline the same as an empty last physical line?"
+      ],
+      "Steps": [
+        "Detect forbidden CR and NUL while preserving unrelated bytes.",
+        "Normalize CRLF without calling TrimSpace.",
+        "Build Lines and Echo from one normalized representation and enforce the per-line limit."
+      ],
+      "Hint": "Use a fixture with # comment, a trailing space and no final newline. Only line endings and the missing final LF should change in Echo.",
+      "Trace": "For a CRLF file containing a then an empty line then b, predict Lines=[a,\"\",b] and Echo=a\\n\\nb\\n. The blank line survives.",
+      "Gate": "LF and CRLF variants yield identical normalized output; bare CR is rejected."
+    },
+    {
+      "Slug": "io-tests",
+      "Title": "Wire the CLI and fault tests",
+      "Goal": "Prove that failures stay within the process contract.",
+      "Before": [
+        "Who owns Close?",
+        "Can stdout contain anything when input is rejected?"
+      ],
+      "Steps": [
+        "Validate argument count and open one path in Run.",
+        "Build a complete numbered report only after ReadDocument succeeds.",
+        "Test missing paths, argument errors and a failing Writer through injected boundaries."
+      ],
+      "Hint": "Keep the input file path out of the reader API. A pure Reader boundary makes short-read tests possible without filesystem tricks.",
+      "Trace": "An oversized second line must fail before line 1 is written. Verify a zero-length output buffer on this path.",
+      "Gate": "Record one valid file invocation, one usage failure and one failing-reader test without panic."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo build -o line-reader .\n# Windows executable name: go build -o line-reader.exe .\ngo run . testdata/lines.txt",
+  "Verification": "<h2>Known cases</h2><p>The fixture has the lines <code>3</code>, <code># note</code> and <code>##start</code>. The report must be:</p><pre><code>1: 3\n2: # note\n3: ##start</code></pre><ul><li>With MaxBytes=4, abcd succeeds; abcde fails without output.</li><li>With MaxLine=3, abc plus LF succeeds; abcd plus LF fails.</li><li>LF and CRLF inputs compare equal after normalization. A bare CR or NUL fails.</li><li>Input a followed by two LF characters contains one actual blank line; input a followed by one LF does not gain one.</li><li>Reader failure after a prefix and writer failure during final output are propagated.</li></ul><h2>Exit gate</h2><p>Show exact byte counts at both limits. Explain why a successful read is not a valid colony and why a partial read must not be echoed as accepted input.</p>",
+  "Engineering": [
+    "Why are transport validity and colony validity separate contracts?",
+    "What information is lost by normalizing CRLF, and is it required by the academy echo policy?",
+    "Why can TrimSpace corrupt an accepted-input echo even when parsing succeeds?",
+    "What is the strongest memory bound your implementation actually enforces?",
+    "How would you report an I/O error after a partial read without calling that data accepted?",
+    "Why is closing a caller-owned Reader a surprising library behavior?",
+    "Which reader behavior would your tests miss if every test used strings.NewReader?"
+  ],
+  "Practical": [
+    "Add a one-byte-over total-size test.",
+    "Add a final-newline versus blank-line comparison.",
+    "Create a Reader that returns one byte on every call.",
+    "Preserve a trailing space in an Echo test.",
+    "Inject a writer error and assert it reaches Run's caller.",
+    "Explain a failing Scanner token test using the configured limit."
+  ],
+  "Extras": [
+    "Add a byte-count summary on stderr. Keep machine-readable stdout unchanged.",
+    "Add line-offset metadata. Use it to locate a later parser error without reparsing raw bytes.",
+    "Benchmark bounded ReadAll versus Scanner for small colony files. Compare allocations as well as time.",
+    "Make limits configurable through a documented Go API while keeping stable CLI defaults.",
+    "Add a context-aware reader adapter for cancellation. Specify what happens to a partial document and why it remains unaccepted."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\"; \"io\")\nvar ErrTODO = errors.New(\"TODO: implement bounded reader\")\ntype Limits struct { MaxBytes, MaxLine int }\ntype Document struct { Lines []string; Echo string }\nfunc ReadDocument(r io.Reader, limits Limits) (Document, error) { // TODO: bounds, line normalization and reader errors\n return Document{}, ErrTODO\n}\nfunc Run(args []string, input io.Reader, output io.Writer) error { // TODO: file ownership, report and writer errors\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport (\"strings\";\"testing\")\nfunc TestReadDocumentAcceptance(t *testing.T) {\n t.Skip(\"TODO: remove when implementing the reader; add limit and injected failure cases\")\n got,err:=ReadDocument(strings.NewReader(\"a\\r\\nb\"),Limits{MaxBytes:10,MaxLine:3})\n if err!=nil || got.Echo!=\"a\\nb\\n\" || len(got.Lines)!=2 {t.Fatalf(\"%+v, %v\",got,err)}\n}\n",
+    "testdata/lines.txt": "3\n# note\n##start\n"
+  }
+}

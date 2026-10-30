@@ -1,0 +1,1 @@
+{"V":4,"Arcs":[{"From":0,"To":1,"Capacity":1},{"From":0,"To":2,"Capacity":1},{"From":1,"To":3,"Capacity":1},{"From":2,"To":3,"Capacity":1}],"Source":0,"Sink":3,"Target":2}

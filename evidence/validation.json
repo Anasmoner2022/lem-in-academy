@@ -1,0 +1,207 @@
+{
+  "canonical_index_redirects_followed": 17,
+  "external_links": "Primary sources researched; live availability of every external reference is not a publication guarantee",
+  "go_toolchain": "go1.26.2",
+  "guide_chapters": 228,
+  "html_pages": 255,
+  "internal_and_external_link_attributes": 7682,
+  "problems": [],
+  "project_modules": 16,
+  "requirements": 36,
+  "scaffold_checks": [
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestInventoryAcceptance\n    core_test.go:6: TODO: remove when implementing Inventory; add validation and I/O cases\n--- SKIP: TestInventoryAcceptance (0.00s)\nPASS\nok  \tacademy.local/p01-go-field-notebook\t1.032s",
+      "project": "P01",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P01",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestReadDocumentAcceptance\n    core_test.go:9: TODO: remove when implementing the reader; add limit and injected failure cases\n--- SKIP: TestReadDocumentAcceptance (0.00s)\nPASS\nok  \tacademy.local/p02-bounded-file-reader\t0.726s",
+      "project": "P02",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P02",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestParseAcceptance\n    core_test.go:9: TODO: remove when implementing parser; add the complete mutation table\n--- SKIP: TestParseAcceptance (0.00s)\nPASS\nok  \tacademy.local/p03-colony-grammar\t0.918s",
+      "project": "P03",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P03",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestComponentsAcceptance\n    core_test.go:6: TODO: implement graph API and remove skip; add cycle and ordering cases\n--- SKIP: TestComponentsAcceptance (0.00s)\nPASS\nok  \tacademy.local/p04-graph-inventory\t1.280s",
+      "project": "P04",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P04",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestShortestAcceptance\n    core_test.go:6: TODO: remove when implementing BFS; add cycle, queue and unreachable cases\n--- SKIP: TestShortestAcceptance (0.00s)\nPASS\nok  \tacademy.local/p05-bfs-route-finder\t1.125s",
+      "project": "P05",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P05",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestPipelineAcceptance\n    core_test.go:6: TODO: remove when implementing Step; add all rejection rules\n--- SKIP: TestPipelineAcceptance (0.00s)\nPASS\nok  \tacademy.local/p06-turn-safety-simulator\t1.086s",
+      "project": "P06",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P06",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestAllocationAcceptance\n    core_test.go:6: TODO: remove when implementing allocation; add capacity and overlap tests\n--- SKIP: TestAllocationAcceptance (0.00s)\nPASS\nok  \tacademy.local/p07-traffic-and-allocation\t1.007s",
+      "project": "P07",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P07",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestFlowAcceptance\n    core_test.go:6: TODO: remove when implementing flow; add reroute and conservation cases\n--- SKIP: TestFlowAcceptance (0.00s)\nPASS\nok  \tacademy.local/p08-residual-flow-workbench\t0.938s",
+      "project": "P08",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P08",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestExpansionAcceptance\n    core_test.go:6: TODO: remove when implementing model; add flow feasibility tests using P08\n--- SKIP: TestExpansionAcceptance (0.00s)\nPASS\nok  \tacademy.local/p09-capacity-through-time\t1.750s",
+      "project": "P09",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P09",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestPlanAcceptance\n    core_test.go:6: TODO: remove when implementing planner; validate movements independently\n--- SKIP: TestPlanAcceptance (0.00s)\nPASS\nok  \tacademy.local/p10-exact-deadline-planner\t1.563s",
+      "project": "P10",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P10",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestOracleAcceptance\n    core_test.go:6: TODO: remove when implementing oracle; add graph enumeration and transcript mutations\n--- SKIP: TestOracleAcceptance (0.01s)\n=== RUN   TestDifferential\n    core_test.go:13: TODO: implement the 3294-case campaign and print counts\n--- SKIP: TestDifferential (0.00s)\n=== RUN   FuzzTranscript\n=== RUN   FuzzTranscript/seed#0\n    core_test.go:17: TODO: bound input, call checker and assert no panic\n--- PASS: FuzzTranscript (0.02s)\n    --- SKIP: FuzzTranscript/seed#0 (0.01s)\nPASS\nok  \tacademy.local/p11-adversarial-verification\t4.101s",
+      "project": "P11",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P11",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestEstimateAcceptance\n    core_test.go:6: TODO: remove when implementing budgets; add overflow and refusal cases\n--- SKIP: TestEstimateAcceptance (0.00s)\nPASS\nok  \tacademy.local/p12-deterministic-release\t1.689s",
+      "project": "P12",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P12",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestCorridorAcceptance\n    core_test.go:9: TODO: enable after implementation; add full CLI, oracle and movement tests\n--- SKIP: TestCorridorAcceptance (0.00s)\nPASS\nok  \tacademy.local/l01-lem-in\t1.495s",
+      "project": "L01",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "L01",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestReplayAcceptance\n    core_test.go:9: TODO: remove when implementing decoder; add pipe and aliasing cases\n--- SKIP: TestReplayAcceptance (0.00s)\nPASS\nok  \tacademy.local/p13-replay-stream-decoder\t1.532s",
+      "project": "P13",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P13",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestAnimationAcceptance\n    core_test.go:6: TODO: remove when implementing renderer; add pixel, transform and decode-back tests\n--- SKIP: TestAnimationAcceptance (0.00s)\nPASS\nok  \tacademy.local/p14-go-raster-animation\t1.026s",
+      "project": "P14",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "P14",
+      "status": "pass"
+    },
+    {
+      "command": "go test -v ./...",
+      "output": "=== RUN   TestVisualizerAcceptance\n    core_test.go:12: TODO: remove after implementation; add replay, cleanup and pixel checks\n--- SKIP: TestVisualizerAcceptance (0.00s)\nPASS\nok  \tacademy.local/v01-go-gif-visualizer\t1.249s",
+      "project": "V01",
+      "status": "pass"
+    },
+    {
+      "command": "go vet ./...",
+      "output": "",
+      "project": "V01",
+      "status": "pass"
+    }
+  ],
+  "solution_tests": "NOT RUN: assessed implementations are intentionally unfinished; acceptance tests are explicitly skipped",
+  "static_http_routes_checked": 255
+}

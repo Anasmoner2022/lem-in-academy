@@ -1,0 +1,136 @@
+{
+  "ID": "P03",
+  "Slug": "p03-colony-grammar",
+  "Title": "Colony Grammar State Machine",
+  "Kind": "preparation",
+  "Stage": "01 · Go and colony data",
+  "Hours": 14,
+  "Depends": [
+    "P02"
+  ],
+  "Summary": "Build a line-oriented parser with explicit phases, pending terminal markers, source locations and adversarial grammar tests.",
+  "Overview": "<p>Build a colony inspection CLI that accepts a bounded text document and returns a validated colony model. It stops before graph search. The useful artifact is a parser whose errors identify the physical line and whose accepted document can later be echoed without reconstruction.</p><p>Reuse P02's reader and normalized Echo contract. Replace P01's notebook grammar with the actual lem-in language. Keep parsing and graph traversal separate: an otherwise valid disconnected colony can parse successfully, then fail reachability in P05.</p>",
+  "Reading": [
+    {
+      "Title": "Official lem-in subject",
+      "URL": "https://github.com/01-edu/public/tree/master/subjects/lem-in",
+      "Section": "Objectives; Instructions; Usage examples",
+      "Why": "Separate actual colony rules from parser policies chosen by the academy.",
+      "Mandatory": true
+    },
+    {
+      "Title": "strings package",
+      "URL": "https://pkg.go.dev/strings",
+      "Section": "Fields; HasPrefix; Cut; Index",
+      "Why": "Tokenize rooms while retaining original physical lines.",
+      "Mandatory": true
+    },
+    {
+      "Title": "strconv package",
+      "URL": "https://pkg.go.dev/strconv",
+      "Section": "ParseInt; Atoi",
+      "Why": "Reject numeric overflow instead of accepting zero or truncated values.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Unicode package",
+      "URL": "https://pkg.go.dev/unicode",
+      "Section": "IsSpace; IsControl",
+      "Why": "Apply name rules consistently to valid UTF-8 text.",
+      "Mandatory": false
+    },
+    {
+      "Title": "Go testing",
+      "URL": "https://pkg.go.dev/testing",
+      "Section": "Subtests and Fuzzing",
+      "Why": "Organize grammar cases and later fuzz the parser.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>A parser state records what is legal next. This grammar needs <code>ants → rooms → links</code>, a pending terminal marker, the room dictionary and a canonical edge set. A pending marker is not a boolean start/end room: it must attach to the next room across comments and unknown commands.</p><pre><code>type Phase uint8\nconst (\n    ExpectAnts Phase = iota\n    ReadRooms\n    ReadLinks\n)\ntype Location struct { Line int } // physical line, starting at 1</code></pre><p>Recognition order matters. Classify comments and exact commands before trying room or tunnel syntax. Numeric conversion must inspect its error. For hyphenated names, a blind Split on '-' loses information: examine all hyphen positions against the complete room dictionary and require one valid endpoint pair.</p><p>Read the hub's <a href=\"../../policies.html\">academy contract</a> before coding. It is part of this project's spec, including choices that upstream leaves ambiguous.</p>",
+  "Spec": "<h2>Accepted language</h2><ol><li>Implement Parse(lines) with phases ants, rooms, links. Preserve source line numbers. Leading/trailing horizontal whitespace may surround a data line; it remains present in Echo. Interior blank lines are invalid. Comments begin with # after trimming; exact ##start and ##end are recognized commands, other ## lines are ignored semantically.</li><li>The first data line is <code>[1-9][0-9]*</code>, in range 1..10000. This no-sign/no-leading-zero rule is academy policy. Commands before the count may be ignored only if unknown; recognized terminal commands there are invalid.</li><li>A room has exactly three whitespace-separated fields: name, x, y. The name is valid UTF-8, nonempty, contains no Unicode whitespace or controls, and begins with neither L nor #. Hyphens are allowed. Coordinates match optional sign plus decimal digits and fit a signed 64-bit Go int; use a 64-bit target. Coincident coordinates and unordered names are valid.</li><li>Exactly one distinct start and one distinct end must be defined. A marker applies to the next room, skipping comments and unknown commands. Another terminal marker while one is pending, a repeated marker, a marker after links or EOF while pending is invalid.</li><li>Room names cannot repeat. At the first tunnel, freeze room definitions. A tunnel has no whitespace and must have exactly one split at a hyphen whose left and right strings are known room names. Zero matches or multiple matches are invalid. Reject self-links and duplicate undirected pairs, including reversed duplicates.</li><li>Reject a room after links, unknown noncommand lines, bad arity, invalid integers, overflow and missing terminals. Unknown commands are ignored even after the links start. Ordinary cycles and isolated extra rooms are permitted at this stage.</li><li>Return no partial Colony on error. Store rooms by insertion order and terminals by integer index. P04 will canonicalize adjacency; Parse does not decide routes or turn count.</li></ol><h2>Limits and CLI</h2><p>Apply P02's limits, plus at most 10000 rooms and 50000 links. The inspection CLI prints <code>ants=N rooms=R links=E start=NAME end=NAME</code> after full validation. An invalid-data error begins <code>ERROR: invalid data format</code>; this prep program may return it to main on stderr. L01 adopts the final stdout error policy.</p>",
+  "Components": [
+    {
+      "Slug": "phases",
+      "Title": "Build the phase transitions",
+      "Goal": "Recognize each line without guessing from token counts alone.",
+      "Before": [
+        "When does the room dictionary become immutable?",
+        "Can an unknown command accidentally consume a pending terminal marker?"
+      ],
+      "Steps": [
+        "Write a transition table for every line class in each phase.",
+        "Classify trimmed comments and commands first, retaining physical line numbers.",
+        "Advance to links only after a uniquely resolved first tunnel; reject rooms thereafter."
+      ],
+      "Hint": "An ignored ##color between ##start and a room must not make the marker disappear. A pending marker reaching a tunnel is an error.",
+      "Trace": "Trace count, ##start, # note, ##unknown, s 0 0. The marker must bind to s. Now replace the room by ##end: reject at that line.",
+      "Gate": "Your table and tests cover every phase crossed with count, room, link, comment, marker, unknown command and blank line."
+    },
+    {
+      "Slug": "records",
+      "Title": "Validate room and terminal records",
+      "Goal": "Keep name, integer and terminal invariants independently testable.",
+      "Before": [
+        "Why is a coordinate of -0 legal but an ant count of -0 invalid?",
+        "What identifies a duplicate room when coordinates differ?"
+      ],
+      "Steps": [
+        "Validate numeric spelling before integer conversion.",
+        "Create each room once and bind at most one pending marker.",
+        "At EOF check count, terminal uniqueness and no pending directive."
+      ],
+      "Hint": "Do not use coordinates as room identity. Two valid rooms can share the same coordinate pair.",
+      "Trace": "Parse rooms named hall, 9 and x-y in arbitrary order, with coincident coordinates. All three names remain distinct. An int64 overflow fails conversion.",
+      "Gate": "Tests show duplicate name, duplicate marker, missing terminal, numeric overflow and allowed duplicate coordinates."
+    },
+    {
+      "Slug": "tunnels",
+      "Title": "Resolve undirected tunnels and failures",
+      "Goal": "Parse links without narrowing the upstream name language.",
+      "Before": [
+        "What should a-b-c mean if a, b-c, a-b and c all exist?",
+        "Why are a-b and b-a the same physical resource?"
+      ],
+      "Steps": [
+        "Inspect candidate hyphen splits using known names and require exactly one match.",
+        "Reject u==v and store an ordered endpoint pair for duplicate detection.",
+        "Return a line-aware error and no usable colony for every invalid branch."
+      ],
+      "Hint": "Keep integer room IDs in canonical pairs. Lexically splitting an endpoint name into fragments is not an alternative grammar.",
+      "Trace": "With rooms a and b-c only, a-b-c resolves to a ↔ b-c. With all four names above, the same line is ambiguous and must fail.",
+      "Gate": "Reversed duplicate, self-link, unknown endpoint and ambiguous hyphen cases are tested separately."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo run . testdata/colony.txt",
+  "Verification": "<h2>Fixture</h2><p>The supplied colony must inspect as <code>ants=3 rooms=3 links=2 start=s end=t</code>. Parsing is not yet proof of reachability.</p><h2>Mutation table</h2><ul><li>Replace 3 by 0, -1, 01 or an overflowing integer: invalid count.</li><li>Delete ##end, repeat ##start, or leave ##end pending at EOF: invalid terminal definition.</li><li>Add s with different coordinates: duplicate name. Give s and m equal coordinates: accepted.</li><li>Add m-s when s-m exists: duplicate undirected link. Add m-m: self-link. Add m-ghost: unknown endpoint.</li><li>Add an ordinary cycle among distinct rooms: accepted. Add a blank data line or room after links: rejected.</li><li>Insert an unknown command between ##start and s: accepted and start remains s.</li><li>Exercise the unique and ambiguous hyphen cases from the tunnel chapter.</li></ul><h2>Exit gate</h2><p>Every invalid case returns an error with the required prefix and a useful physical line, no panic and no usable partial model. Keep echo bytes from P02; never rebuild them from parsed records.</p>",
+  "Engineering": [
+    "Why should a parser report the first invalid physical line instead of collecting an arbitrary map of errors?",
+    "Which grammar policies are academy decisions and how would changing one affect stored fixtures?",
+    "Does allowing hyphens in names make a tunnel grammar intrinsically ambiguous? Defend your resolution rule.",
+    "Why should ordinary graph cycles survive parsing while a self-link does not?",
+    "How can an unknown command be ignored semantically and still appear in the accepted-input echo?",
+    "What property prevents a pending terminal marker from silently binding to the wrong room?",
+    "Would accepting room definitions after links simplify or complicate endpoint validation?"
+  ],
+  "Practical": [
+    "Add a test for a UTF-8 name with no whitespace.",
+    "Add a coordinate-overflow fixture.",
+    "Insert comments around both terminal definitions.",
+    "Write the reversed-duplicate link test.",
+    "Add the four-name ambiguous hyphen fixture.",
+    "Show that a disconnected but syntactically valid colony parses successfully."
+  ],
+  "Extras": [
+    "Add structured error codes alongside the required error prefix. Keep the CLI text stable.",
+    "Add a source-span field to each model record. Use it to explain a later graph error.",
+    "Fuzz Parse with a small byte alphabet. Assert termination, no panic and no partial model on error.",
+    "Build a diagnostic mode that prints the transition trace to stderr, making pending markers observable.",
+    "Write a compatibility proposal for a different whitespace policy. Include tests showing every acceptance change before altering the parser."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\";\"io\")\nvar ErrTODO=errors.New(\"TODO: implement colony parser\")\ntype Room struct { Name string; X,Y int }\ntype Link struct { A,B int }\ntype Colony struct { Ants int; Rooms []Room; Links []Link; Start,End int }\nfunc Parse(lines []string)(Colony,error){ // TODO: phases, commands, rooms, terminals, unique links\n return Colony{},ErrTODO\n}\nfunc Run(args []string,input io.Reader,output io.Writer)error{ // TODO: reuse bounded reader, parse, inspect\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport (\"testing\";\"strings\")\nfunc TestParseAcceptance(t *testing.T){\n t.Skip(\"TODO: remove when implementing parser; add the complete mutation table\")\n c,e:=Parse(strings.Split(\"3\\n##start\\ns 0 0\\nm 1 0\\n##end\\nt 2 0\\ns-m\\nm-t\",\"\\n\"))\n if e!=nil||c.Ants!=3||len(c.Rooms)!=3||len(c.Links)!=2{t.Fatalf(\"%+v %v\",c,e)}\n}\n",
+    "testdata/colony.txt": "3\n##start\ns 0 0\nm 1 0\n##end\nt 2 0\ns-m\nm-t\n"
+  }
+}

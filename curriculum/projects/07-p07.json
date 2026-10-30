@@ -1,0 +1,122 @@
+{
+  "ID": "P07",
+  "Slug": "p07-traffic-and-allocation",
+  "Title": "Traffic and Ant Allocation Lab",
+  "Kind": "preparation",
+  "Stage": "03 · Exact optimization",
+  "Hours": 8,
+  "Depends": [
+    "P06"
+  ],
+  "Summary": "Build a deadline calculator for known disjoint routes and expose why permanently reserving the first shortest path can lose.",
+  "Overview": "<p>Build an allocation calculator for a supplied set of internally vertex-disjoint start-to-end paths. It finds the smallest completion deadline supported by those paths and constructs a valid pipeline. Then compare two supplied route sets on a colony where a greedy shortest-path reservation performs worse.</p><p>Reuse P05's distance vocabulary and P06's movement checker. This project teaches throughput, makespan and allocation without pretending that its restricted route-set calculator solves the whole colony problem. The counterexample motivates residual rerouting in P08.</p>",
+  "Reading": [
+    {
+      "Title": "Official lem-in subject",
+      "URL": "https://github.com/01-edu/public/tree/master/subjects/lem-in",
+      "Section": "Objectives: quickest way for n ants; room and tunnel constraints",
+      "Why": "Optimize the last ant's arrival, not only one ant's route.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Princeton maxflow study guide",
+      "URL": "https://www.cs.princeton.edu/courses/archive/fall15/cos226/lectures/study/64MaxFlow.html",
+      "Section": "Residual network; augmenting paths",
+      "Why": "Preview why a previous choice may need cancellation.",
+      "Mandatory": false
+    },
+    {
+      "Title": "Go sort package",
+      "URL": "https://pkg.go.dev/sort",
+      "Section": "SliceStable",
+      "Why": "Keep equal-length allocation choices reproducible.",
+      "Mandatory": true
+    }
+  ],
+  "Refresher": "<p><strong>Makespan</strong> is the number of turns until the last ant arrives. For a path of length l edges used as a pipeline, its first ant arrives at turn l and each further ant can arrive one turn later. By deadline T it can deliver <code>max(0,T-l+1)</code> ants. This formula also gives T deliveries for a direct edge, respecting one use of that edge per turn.</p><p>For internally disjoint paths, sum those capacities. A deadline can carry n ants exactly when the sum is at least n. Allocate no more than each path's capacity and stop once n ants are assigned. The formula applies to the supplied independent paths; overlapping paths share rooms or edges and invalidate the simple sum.</p><p>Compare lengths [2,4] for four ants: T=3 carries 2+0, T=4 carries 3+1. Sending all four down the shortest path takes five turns. Good allocation can improve a fixed route set, but finding that set is a different problem.</p>",
+  "Spec": "<ol><li>Implement <code>Allocate(lengths,n)</code> for positive path lengths and positive n. Return the minimum feasible integer deadline and counts per path, with sum counts=n.</li><li>Preserve input path order for equal decisions. At the minimum deadline, allocate up to each path's deadline capacity in supplied order until all ants are assigned. Zero allocation is permitted.</li><li>Use checked arithmetic and early capacity saturation at n; reject negative/zero lengths, nonpositive n and representational overflow.</li><li>Build a schedule generator for explicitly supplied internally vertex-disjoint paths. Assign ant IDs by path order then launch order; advance existing ants before launching the next ant on each path. Check the result with P06.</li><li>Reject overlapping ordinary rooms, duplicate path edges and malformed paths at the schedule boundary. Unlimited start/end do not authorize a duplicated direct tunnel.</li><li>The CLI fixture uses lengths [2,4], n=4; print <code>turns=4 counts=3,1</code>.</li><li>Submit a written counterexample: edges s-a, a-b, b-t, a-c, c-d, d-t, s-e, e-f, f-b. Reserving shortest s-a-b-t permanently blocks two disjoint routes s-a-c-d-t and s-e-f-b-t. For four ants, compare the shortest-only six-turn pipeline with the two-route five-turn pipeline. This demonstrates greedy failure; prove global optimality later with P11.</li></ol>",
+  "Components": [
+    {
+      "Slug": "deadline-capacity",
+      "Title": "Calculate deadline capacity",
+      "Goal": "Translate route length into how many ants can arrive on time.",
+      "Before": [
+        "Why is there a +1 in T-l+1?",
+        "How does a direct edge differ from unlimited terminal occupancy?"
+      ],
+      "Steps": [
+        "Write boundary tests at T=l-1, l and l+1.",
+        "Sum capacities with saturation at n to avoid needless overflow.",
+        "Search a safe interval from the shortest length to shortest length+n-1."
+      ],
+      "Hint": "A length-four path delivers its first ant at turn four, not turn three. Test that off-by-one before using the formula in a search.",
+      "Trace": "For [2,4], n=4, capacities at T=3 are [2,0]; at T=4 they are [3,1].",
+      "Gate": "Every returned deadline is feasible and deadline-1 is infeasible for the supplied route set."
+    },
+    {
+      "Slug": "allocate-pipeline",
+      "Title": "Allocate ants and construct pipelines",
+      "Goal": "Turn counts into a legal concurrent schedule.",
+      "Before": [
+        "How will an ant receive a stable ID?",
+        "Which capacity rules are already guaranteed by path disjointness?"
+      ],
+      "Steps": [
+        "Choose counts within capacities summing exactly to n.",
+        "Generate turns including arrivals and new launches.",
+        "Pass every generated turn to P06's independent checker."
+      ],
+      "Hint": "On a path s-a-t, the second turn can move the first ant to t and launch the second to a. A strict empty-at-start-of-turn rule would incorrectly slow the pipeline.",
+      "Trace": "For a length-two path with three ants, list arrivals at turns 2,3,4. Add one ant on a length-four path arriving at turn 4.",
+      "Gate": "The [2,4] fixture ends in four turns, assigns every ID once and passes the movement checker."
+    },
+    {
+      "Slug": "greedy-counterexample",
+      "Title": "Break a greedy path reservation",
+      "Goal": "Separate route-set selection from allocation and motivate rerouting.",
+      "Before": [
+        "Which vertices does s-a-b-t consume?",
+        "Can two longer paths finish four ants sooner?"
+      ],
+      "Steps": [
+        "Draw the supplied nine-edge graph.",
+        "Check both length-four alternatives are internally disjoint.",
+        "Compute and simulate the two candidate plans, recording exactly what this comparison proves."
+      ],
+      "Hint": "Deleting a and b after selecting the first shortest path destroys both alternatives. Residual capacity later permits revising a choice rather than freezing it.",
+      "Trace": "Shortest-only length 3 with four ants takes 6 turns. Two length-4 routes with two ants each take 5. Do not infer this from total path lengths.",
+      "Gate": "Explain why a valid greedy schedule is not enough for a fewest-turns claim and preserve the graph for the P11 oracle."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo run . testdata/allocation.json",
+  "Verification": "<ul><li>Lengths [2,4], n=4: turns=4, counts=[3,1].</li><li>Lengths [1], n=3: turns=3, counts=[3]; never three ants through the direct tunnel at once.</li><li>Lengths [3,3], n=4: turns=4, counts=[2,2].</li><li>Length zero, n zero and empty route list: error.</li><li>A supplied overlapping path pair: reject before using the additive capacity formula.</li><li>The greedy counterexample: demonstrate a legal five-turn alternative to the six-turn shortest-only plan.</li></ul><h2>Exit gate</h2><p>For each result, show feasibility at T and infeasibility at T-1 within the fixed route set. Explicitly state that this calculator is not a general minimum-turn colony solver.</p>",
+  "Engineering": [
+    "Why does minimum total walking distance differ from minimum last-arrival time?",
+    "What assumptions make the sum of route capacities valid?",
+    "How can one shortest path prevent a better collection of longer paths?",
+    "Does maximizing the number of disjoint routes by itself minimize completion time?",
+    "When is a zero allocation to a valid route the right decision?",
+    "What independent evidence would be needed to call the counterexample's five-turn plan globally optimal?",
+    "How does the direct-tunnel case expose a common terminal-capacity misunderstanding?"
+  ],
+  "Practical": [
+    "Trace capacities at the two neighboring deadlines for [2,4].",
+    "Change n from 4 to 5 and recompute.",
+    "Test a single direct edge with three ants.",
+    "Draw the greedy counterexample and label consumed ordinary rooms.",
+    "Pass a generated pipeline through P06.",
+    "Add an overlapping route test that would fool a length-only calculator."
+  ],
+  "Extras": [
+    "Add a capacity table export for every searched deadline. Make off-by-one errors visible.",
+    "Add binary search over the monotone fixed-route capacity function and compare probe counts.",
+    "Allow a documented path priority while retaining stable tie-breaking.",
+    "Build a visualization-free text timeline of launches and arrivals for review.",
+    "Explore route sets with shared bottlenecks and document why a different model, introduced in P09, is needed before summing capacities."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\";\"io\")\nvar ErrTODO=errors.New(\"TODO: implement allocation\")\ntype Allocation struct { Turns int; Counts []int }\nfunc Allocate(lengths []int,ants int)(Allocation,error){ // TODO: monotone deadline capacity and deterministic counts\n return Allocation{},ErrTODO\n}\ntype Path struct { Rooms []int }\ntype Move struct { Ant,To int }\nfunc Pipeline(paths []Path, counts []int)([][]Move,error){ // TODO: validate internal disjointness, assign IDs and generate turn batches\n return nil,ErrTODO\n}\nfunc Run(args []string,input io.Reader,output io.Writer)error{ // TODO: decode lengths, calculate and print\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport \"testing\"\nfunc TestAllocationAcceptance(t *testing.T){\n t.Skip(\"TODO: remove when implementing allocation; add capacity and overlap tests\")\n a,e:=Allocate([]int{2,4},4)\n if e!=nil||a.Turns!=4||len(a.Counts)!=2||a.Counts[0]!=3||a.Counts[1]!=1{t.Fatalf(\"%+v %v\",a,e)}\n}\n",
+    "testdata/allocation.json": "{\"Lengths\":[2,4],\"Ants\":4}\n"
+  }
+}

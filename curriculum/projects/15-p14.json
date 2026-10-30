@@ -1,0 +1,136 @@
+{
+  "ID": "P14",
+  "Slug": "p14-go-raster-animation",
+  "Title": "Go Raster and GIF Studio",
+  "Kind": "preparation",
+  "Stage": "05 · Optional visualizer preparation",
+  "Hours": 12,
+  "Depends": [
+    "P13"
+  ],
+  "Summary": "Build a deterministic coordinate mapper, line/disc renderer and bounded animated GIF encoder using only Go's standard library.",
+  "Overview": "<p>Build an image studio that draws a tiny colony scene and animates a supplied dot trajectory into a GIF. It is independent from lem-in parsing so you can learn coordinate transforms, raster primitives, palettes and frame timing without debugging a stream decoder at the same time.</p><p>Reuse P13's concept of immutable boundary snapshots. The new artifact is a Go renderer with PNG keyframes for inspection, an animated GIF and a text legend. Go has standard image encoders but no standard GUI toolkit or font rasterizer; a small numeric bitmap glyph set or an external text legend keeps the bonus feasible without extra packages.</p>",
+  "Reading": [
+    {
+      "Title": "image package",
+      "URL": "https://pkg.go.dev/image",
+      "Section": "Rectangle; Point; NewPaletted; Paletted.SetColorIndex",
+      "Why": "Create bounded raster frames with a stable palette.",
+      "Mandatory": true
+    },
+    {
+      "Title": "image/color package",
+      "URL": "https://pkg.go.dev/image/color",
+      "Section": "RGBA; Palette",
+      "Why": "Choose explicit colors without implicit palette generation.",
+      "Mandatory": true
+    },
+    {
+      "Title": "image/gif package",
+      "URL": "https://pkg.go.dev/image/gif",
+      "Section": "GIF; EncodeAll; DecodeAll",
+      "Why": "Encode animation and verify frame dimensions and delays.",
+      "Mandatory": true
+    },
+    {
+      "Title": "image/png package",
+      "URL": "https://pkg.go.dev/image/png",
+      "Section": "Encode; Decode",
+      "Why": "Inspect individual keyframes independently of animation viewers.",
+      "Mandatory": true
+    },
+    {
+      "Title": "image/draw package",
+      "URL": "https://pkg.go.dev/image/draw",
+      "Section": "Draw; Src",
+      "Why": "Copy a static background into independent frames.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>Model coordinates may be negative, coincident or very large. Convert each coordinate to float64 before subtracting to avoid signed integer overflow. Fit the bounding box into the viewport with padding and one uniform scale so distances keep their aspect ratio. If an axis span is zero, center it rather than dividing by zero. Invert y if your display policy treats upward model coordinates as upward on screen.</p><p>A paletted frame stores one color index per pixel. Use a fixed palette with a dark background, pale tunnels, distinct rooms and high-contrast ants. Check bounds before setting pixels. Full independent frames are simpler than delta frames; choose a disposal policy deliberately so trails do not accumulate.</p><p>GIF delay units are hundredths of a second. If each logical turn has four interpolation frames and lasts 0.4 seconds, each frame delay is 10. Keep the initial and final state visible. EncodeAll stores frames in memory, so total pixels across frames need their own budget.</p><pre><code>type Pixel struct { X, Y int }\ntype FrameSpec struct { Positions []Pixel; Delay int }\n// The mapping, drawing and frame sequencing are your core work.</code></pre>",
+  "Spec": "<ol><li>Implement a deterministic fit transform into a default 320×240 image with 20-pixel padding. Accept signed coordinates, preserve aspect ratio, center zero-span axes and reject invalid dimensions or nonfinite derived values.</li><li>Draw tunnels as clipped or bounds-checked line segments, rooms as fixed-radius discs and ant positions as distinct high-contrast discs. Draw in stable edge, room and ant order.</li><li>Use only image, image/color, image/draw, image/png, image/gif and other standard packages. Do not add golang.org/x/image/font, GUI libraries or browser JavaScript.</li><li>Room names may be arbitrary valid grammar names. Write a UTF-8 text legend mapping stable room IDs to names and coordinates. Numeric glyphs are an optional hand-built bitmap feature, not a third-party font requirement.</li><li>Require at least two boundary snapshots with the same positive number of positions and valid image coordinates. Render full independent paletted frames. Add four interpolation frames between supplied turn boundaries, using linear interpolation for moving ants and fixed positions for waiting ants. The final keyframe must match the next boundary exactly.</li><li>Default per-turn time is 40 hundredths of a second; distribute it into four equal delays. Add initial/final holds of 40 units. Specify GIF LoopCount=0 and a disposal strategy that avoids trails.</li><li>Maximum dimensions 1280×720, at most 2000 frames and 50000000 total stored pixels. Preflight checked width×height×frameCount; report a resource error before allocating beyond the budget. Never silently crop frames or omit turns.</li><li>The CLI reads the supplied JSON dot sequence and writes <code>studio.gif</code>, <code>first.png</code>, <code>last.png</code> and <code>legend.txt</code> in the current directory only after validating the request. Fail cleanly on output errors.</li></ol>",
+  "Components": [
+    {
+      "Slug": "coordinates",
+      "Title": "Fit colony coordinates safely",
+      "Goal": "Make all valid coordinate shapes visible without overflow or division by zero.",
+      "Before": [
+        "What happens when all x coordinates are equal?",
+        "Where can integer subtraction overflow before conversion?"
+      ],
+      "Steps": [
+        "Find coordinate bounds using a documented numeric representation.",
+        "Compute a uniform padded scale and centered translation.",
+        "Test negative, coincident, zero-span and large signed coordinates."
+      ],
+      "Hint": "For points (-10,0) and (10,0), the y coordinate belongs at the vertical center. A zero y span must not produce a NaN scale.",
+      "Trace": "Map two coincident rooms. They share a pixel under the exact transform; a later documented display offset may separate labels, but must not change the model coordinates.",
+      "Gate": "Every mapped point stays within padding bounds and the transform is deterministic."
+    },
+    {
+      "Slug": "raster",
+      "Title": "Draw a static scene",
+      "Goal": "Build reusable, bounded pixel primitives.",
+      "Before": [
+        "Which layer should be drawn first so ants remain visible?",
+        "Can drawing a thick disc cross image bounds?"
+      ],
+      "Steps": [
+        "Implement tested line and disc primitives.",
+        "Render the stable tunnel/room background.",
+        "Draw ants on independent copied frames and export PNG keyframes."
+      ],
+      "Hint": "Use a small hand-inspected 16×16 test image to check endpoints, clipping and radii. A large attractive scene can hide off-by-one pixel errors.",
+      "Trace": "Draw a horizontal tunnel behind two rooms and an ant. The ant color must remain visible after every layer is drawn.",
+      "Gate": "PNG dimensions, selected expected pixels and frame independence are tested."
+    },
+    {
+      "Slug": "gif",
+      "Title": "Encode and inspect animation",
+      "Goal": "Connect immutable keyframes to predictable GIF timing and memory use.",
+      "Before": [
+        "How many images are stored for K turn transitions with four subframes?",
+        "Which disposal choice prevents ghost trails?"
+      ],
+      "Steps": [
+        "Preflight frame count and total pixel budgets with checked arithmetic.",
+        "Interpolate positions and assign explicit delays and loop behavior.",
+        "Encode GIF, decode it back with gif.DecodeAll and compare metadata and endpoint frames."
+      ],
+      "Hint": "Do not reuse one Paletted pointer for every frame. EncodeAll would otherwise see repeated final pixels rather than the historical animation.",
+      "Trace": "With two boundary snapshots, store one initial hold, four interpolated frames and one final hold: six frames. Delays are [40,10,10,10,10,40].",
+      "Gate": "Decoded frame count, size, delays and initial/final pixel positions match the specification; animation is visually inspected."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo run . testdata/studio.json",
+  "Verification": "<ul><li>Two snapshots with one moving dot produce six frames with delays [40,10,10,10,10,40].</li><li>All coordinates equal: centered scene without divide-by-zero.</li><li>Negative and near-int64-extreme coordinates: no integer overflow or nonfinite transform.</li><li>A line ending at an image boundary and a disc crossing padding: no out-of-bounds panic.</li><li>Decode the GIF back: dimensions, frame count, palette and delays are as declared.</li><li>Mutate one frame after rendering and verify another frame's pixels do not change.</li><li>Budget one pixel below the required total: resource error before frame allocation.</li></ul><h2>Exit gate</h2><p>Inspect the first/last PNG and GIF in a viewer, verify no trails or missing endpoint frames and keep a text legend. Pixel/metadata tests and visual inspection serve different purposes.</p>",
+  "Engineering": [
+    "Why does converting after subtracting large ints fail to prevent overflow?",
+    "What is lost if x and y are scaled independently?",
+    "How should coincident room coordinates be presented without falsifying the graph?",
+    "Why is a text legend a practical standard-library alternative to adding a font dependency?",
+    "Which animation behavior is viewer-dependent despite correct encoded delays?",
+    "How do full-frame GIFs simplify correctness while increasing memory use?",
+    "What evidence shows interpolation respects logical turn boundaries?"
+  ],
+  "Practical": [
+    "Render a zero-span x-axis scene.",
+    "Decode a generated GIF and print its delay array.",
+    "Change one stored frame and check another is unchanged.",
+    "Inspect a moving dot for trails.",
+    "Force the total-pixel budget to fail.",
+    "Verify the text legend preserves a UTF-8 room name."
+  ],
+  "Extras": [
+    "Implement a tiny numeric bitmap glyph set in Go so room IDs can appear in images.",
+    "Add deterministic label offsets for coincident rooms and preserve original coordinates in the legend.",
+    "Add an optional PNG contact sheet for reviewing every logical turn without animation.",
+    "Optimize static background reuse while preserving independent encoded frame pixels.",
+    "Compare full-frame and delta-frame GIF encoding with explicit disposal tests and measured memory/output-size tradeoffs."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\";\"io\";\"image\";\"image/gif\")\nvar ErrTODO=errors.New(\"TODO: implement Go raster animation\")\ntype Point struct {X,Y int64}\ntype Pixel struct {X,Y int}\nfunc Fit(points []Point,width,height,padding int)([]Pixel,error){ // TODO: checked aspect-preserving coordinate transform\n return nil,ErrTODO\n}\ntype Scene struct { Rooms []Pixel; Links [][2]int; Ants []Pixel }\nfunc Render(scene Scene,width,height int)(*image.Paletted,error){ // TODO: palette, background, line/disc primitives and bounds\n return nil,ErrTODO\n}\nfunc Animate(scene Scene,boundaries [][]Pixel,width,height int)(*gif.GIF,error){ // TODO: budgets, independent frames, interpolation and delays\n return nil,ErrTODO\n}\nfunc Run(args []string,input io.Reader,output io.Writer)error{ // TODO: JSON fixture, GIF/PNG outputs and legend\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport \"testing\"\nfunc TestAnimationAcceptance(t *testing.T){\n t.Skip(\"TODO: remove when implementing renderer; add pixel, transform and decode-back tests\")\n a,e:=Animate(Scene{},[][]Pixel{{{20,20}},{{80,20}}},100,60)\n if e!=nil||len(a.Image)!=6||len(a.Delay)!=6{t.Fatalf(\"%+v %v\",a,e)}\n}\n",
+    "testdata/studio.json": "{\"Width\":320,\"Height\":240,\"Points\":[{\"X\":-10,\"Y\":0},{\"X\":10,\"Y\":0}],\"Boundaries\":[[{\"X\":20,\"Y\":120}],[{\"X\":300,\"Y\":120}]]}\n"
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "ID": "P06",
+  "Slug": "p06-turn-safety-simulator",
+  "Title": "Turn Safety Simulator",
+  "Kind": "preparation",
+  "Stage": "02 · Graphs and turn safety",
+  "Hours": 12,
+  "Depends": [
+    "P05"
+  ],
+  "Summary": "Build an independent batch movement validator for room occupancy, undirected tunnel use, ant identity and completion.",
+  "Overview": "<p>Build a replay checker that accepts a graph, initial ant positions and proposed movement turns. It must decide whether each turn is legal and advance state only after a complete valid batch. The checker will later challenge the planner without importing planner logic.</p><p>Reuse P04's graph and P05's reachability vocabulary. Logical concurrency here means that multiple ants move during one turn; goroutines are unnecessary. The artifact is a deterministic state transition function with adversarial tests, not a route planner.</p>",
+  "Reading": [
+    {
+      "Title": "Official lem-in subject",
+      "URL": "https://github.com/01-edu/public/tree/master/subjects/lem-in",
+      "Section": "Instructions: room occupancy; tunnel use; movements; Usage Example 2",
+      "Why": "Observe that a room vacated in a turn can receive the following ant.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Go testing",
+      "URL": "https://pkg.go.dev/testing",
+      "Section": "Subtests",
+      "Why": "Test each independent rejection rule.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Effective Go",
+      "URL": "https://go.dev/doc/effective_go",
+      "Section": "Maps; Slices; Errors",
+      "Why": "Use local validation state without mutating an accepted replay on failure.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>A turn is a batch of intents derived from the previous state. First check each ant and edge, then account for all departures and arrivals. Final occupancy of an ordinary room cannot exceed one. Start/end have unlimited occupancy; their tunnels still have capacity one.</p><p>For s-a-b-t with ants at a and b, a turn moving b→t and a→b is legal. Validate the batch independently of token order. Two opposite moves a→b and b→a use the same undirected tunnel twice and are illegal, even though final occupancy looks harmless.</p><pre><code>type Move struct { Ant, To int } // Ant is 1-based, To is a room ID\n// Derive each source from the previous positions, never from an untrusted token.</code></pre><p>Copy state before applying a successful turn or construct next positions separately. A rejected turn must leave previous positions byte-for-byte unchanged. Finished ants remain at end. Waiting is absence from the movement list.</p>",
+  "Spec": "<ol><li>Implement <code>Step(g,start,end,positions,moves)</code>, where positions[i] is ant i+1's room. Validate the initial positions and all room IDs.</li><li>For each intent, require ant in 1..n, at most one intent for that ant, an existing undirected tunnel and a different destination. An ant already at end cannot leave.</li><li>Use a canonical unordered endpoint pair to ensure each tunnel is used at most once across both directions during the turn.</li><li>Compute all departures and arrivals from the old state. A room vacated this turn may receive one ant. Reject two arrivals to the same ordinary room or an arrival into a stationary occupied room.</li><li>Start and end permit multiple ants. Waiting is legal, but no empty movement turn is accepted in a completed canonical solution stream. The general Step API can validate an empty batch as unchanged state.</li><li>Do not mutate positions or moves on either success or failure. Return next positions only after the entire batch passes.</li><li>The CLI reads a JSON replay with a graph and turns, starts all ants at start, prints <code>valid turns=T arrived=N</code> only if all ants reach end. An incomplete replay is a distinct error.</li></ol><p>The academy uses simultaneous turns with departures before arrivals. Cyclic rotations around three or more rooms are batch-valid under this convention; L01 can normalize closed per-turn movement cycles to waits before output. This choice is explicit because upstream does not fully define within-turn ordering.</p>",
+  "Components": [
+    {
+      "Slug": "identity-edges",
+      "Title": "Validate identities and tunnel use",
+      "Goal": "Reject illegal individual moves before changing occupancy.",
+      "Before": [
+        "Can the source room in an output token be trusted?",
+        "Why does reversing an edge not create a new tunnel?"
+      ],
+      "Steps": [
+        "Check ant IDs and derive sources from the old position slice.",
+        "Track ants already moved and canonical tunnel keys.",
+        "Reject unknown edges, no-op tokens and departure from end."
+      ],
+      "Hint": "For a direct s-t tunnel, two ants both moving to end still collide on the one physical tunnel. Unlimited terminal occupancy does not increase edge capacity.",
+      "Trace": "Two ants at s both proposing t through s-t must fail even though end can hold both.",
+      "Gate": "Separate tests reject duplicate ant, out-of-range ant, nonedge, repeated tunnel and movement from end."
+    },
+    {
+      "Slug": "occupancy",
+      "Title": "Apply a concurrent turn atomically",
+      "Goal": "Permit pipelines while rejecting room collisions.",
+      "Before": [
+        "How does a stationary ant differ from an ant departing this turn?",
+        "Can validation depend on the order of tokens?"
+      ],
+      "Steps": [
+        "Validate the starting room occupancy.",
+        "Construct departure and arrival counts, then validate final ordinary occupancy.",
+        "Commit next positions only after all checks; retain original slices."
+      ],
+      "Hint": "A per-token sequential simulator can incorrectly reject a valid pipeline when tokens arrive in the opposite order. Batch counts make legality independent from presentation order.",
+      "Trace": "Old positions [a,b], moves ant1→b and ant2→t are legal in either token order. Remove ant2's move: ant1's arrival is illegal.",
+      "Gate": "Permutation tests preserve batch validity, and failed turns cannot change the input state."
+    },
+    {
+      "Slug": "replay",
+      "Title": "Check full replay completion",
+      "Goal": "Give the final planner an independent behavioral witness.",
+      "Before": [
+        "How is waiting represented?",
+        "Does reaching end earlier allow an ant to move again?"
+      ],
+      "Steps": [
+        "Start all ant IDs at start and apply one Step per replay turn.",
+        "Keep a turn counter and reject unfinished streams.",
+        "Return a summary without importing or calling route planning code."
+      ],
+      "Hint": "The independent checker can share an immutable graph model, but should not reuse the planner's move-generation helper. Shared bugs would make a weak oracle.",
+      "Trace": "For two ants on s-a-t, replay turns [1→a], [1→t,2→a], [2→t]. The summary is valid turns=3 arrived=2.",
+      "Gate": "A valid pipeline, an incomplete stream and a midstream collision all have explicit expected outcomes."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo run . testdata/replay.json",
+  "Verification": "<p>The two-ant s-a-t fixture has three turns and must print <code>valid turns=3 arrived=2</code>.</p><ul><li>Reverse tokens in the middle turn: still valid.</li><li>Send two ants into a during the first turn: room and tunnel violations.</li><li>Move ant1 twice in one turn: reject before state changes.</li><li>Move into an occupied room whose occupant waits: reject.</li><li>Swap two ants on one edge: reject shared tunnel usage.</li><li>Let two distinct terminal-adjacent edges deliver to end in one turn: accepted.</li><li>End the stream after turn 2: incomplete. Let a finished ant leave end: rejected.</li></ul><h2>Exit gate</h2><p>Demonstrate atomic rejection, order-independent batch validation and final all-ant completion. Do not use this checker to infer optimality; a slow schedule can be perfectly legal.</p>",
+  "Engineering": [
+    "Which invariants are local to one move, one turn and the whole replay?",
+    "Why can final room occupancy alone miss an illegal tunnel swap?",
+    "What would a sequential vacancy rule change about a three-room rotation?",
+    "How can two independently written components still share a bug through a common helper?",
+    "Why is an unchanged failed state useful for debugging and test shrinking?",
+    "Does validating a complete schedule prove it finishes in the fewest turns?",
+    "How should the checker describe multiple simultaneous violations without making ordering arbitrary?"
+  ],
+  "Practical": [
+    "Reverse the tokens in a valid pipeline turn.",
+    "Add a stationary-room collision case.",
+    "Add a direct-tunnel double-use case.",
+    "Assert original positions remain unchanged after failure.",
+    "Remove the last turn and inspect incomplete-replay detection.",
+    "Write a three-room rotation test documenting the academy convention."
+  ],
+  "Extras": [
+    "Add a per-turn occupancy report for debugging. Keep the machine-readable replay format separate.",
+    "Add immutable snapshots so a review tool can step backward through a replay.",
+    "Add minimal failing-prefix reporting to isolate the first illegal turn.",
+    "Implement a mutation runner that changes one token at a time and checks the validator rejects targeted faults.",
+    "Compare batch semantics with a sequential-vacancy variant on tiny cases. Document which differences are policy choices and which are true capacity bugs."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\";\"io\")\nvar ErrTODO=errors.New(\"TODO: implement turn safety\")\ntype Graph struct { Adj [][]int }\ntype Move struct { Ant,To int }\nfunc Step(g Graph,start,end int,positions []int,moves []Move)([]int,error){ // TODO: identities, edges, departures, arrivals and atomic validation\n return nil,ErrTODO\n}\nfunc Run(args []string,input io.Reader,output io.Writer)error{ // TODO: decode replay, start positions, validate completion\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport \"testing\"\nfunc TestPipelineAcceptance(t *testing.T){\n t.Skip(\"TODO: remove when implementing Step; add all rejection rules\")\n g:=Graph{Adj:[][]int{{1},{0,2},{1}}}\n next,e:=Step(g,0,2,[]int{1,0},[]Move{{1,2},{2,1}})\n if e!=nil||len(next)!=2||next[0]!=2||next[1]!=1{t.Fatalf(\"%v %v\",next,e)}\n}\n",
+    "testdata/replay.json": "{\"Adj\":[[1],[0,2],[1]],\"Start\":0,\"End\":2,\"Ants\":2,\"Turns\":[[{\"Ant\":1,\"To\":1}],[{\"Ant\":1,\"To\":2},{\"Ant\":2,\"To\":1}],[{\"Ant\":2,\"To\":2}]]}\n"
+  }
+}

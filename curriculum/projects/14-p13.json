@@ -1,0 +1,136 @@
+{
+  "ID": "P13",
+  "Slug": "p13-replay-stream-decoder",
+  "Title": "Replay Stream Decoder",
+  "Kind": "preparation",
+  "Stage": "05 · Optional visualizer preparation",
+  "Hours": 10,
+  "Depends": [
+    "L01"
+  ],
+  "Summary": "Build a bounded stdin replay decoder that validates a lem-in transcript and exposes immutable room snapshots for rendering.",
+  "Overview": "<p>Build a streaming replay inspection tool for completed lem-in output. It separates echoed colony data from movements, validates the replay and emits a text table of ant positions at turn boundaries. This is the data foundation for the optional visualizer; it does not create images yet.</p><p>Reuse P11's transcript grammar and P06's independent movement rules after L01 is ready. The new work is a Reader-based consumer, immutable snapshots, stdin EOF, producer failure and text/binary stream boundaries. The renderer in P14 should never have to parse movement tokens itself.</p>",
+  "Reading": [
+    {
+      "Title": "bufio package",
+      "URL": "https://pkg.go.dev/bufio",
+      "Section": "Scanner; Buffer; Err",
+      "Why": "Read a bounded transcript without losing scanner failures.",
+      "Mandatory": true
+    },
+    {
+      "Title": "io package",
+      "URL": "https://pkg.go.dev/io",
+      "Section": "Reader; LimitReader; Pipe",
+      "Why": "Define ownership and bounded stream consumption.",
+      "Mandatory": true
+    },
+    {
+      "Title": "os/exec package",
+      "URL": "https://pkg.go.dev/os/exec",
+      "Section": "Cmd.StdoutPipe; Start; Wait",
+      "Why": "Test producer-consumer behavior in Go without shell-specific text transformations.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Official lem-in bonus",
+      "URL": "https://github.com/01-edu/public/tree/master/subjects/lem-in",
+      "Section": "Bonus: visualizer consumes lem-in output",
+      "Why": "Keep the bonus interface compatible with the published pipeline.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Go bytes package",
+      "URL": "https://pkg.go.dev/bytes",
+      "Section": "Buffer; NewReader",
+      "Why": "Test replay decoding without external processes.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>A producer's stdout becomes the consumer's stdin. EOF only means the stream ended; it does not prove all ants arrived. A solver invalid-data line is not a valid replay. The decoder must reject it rather than create an empty animation.</p><p>A snapshot is the full position array at one boundary, including turn 0. Copy each slice when storing history. Appending the same mutable slice repeatedly produces frames that all show the final state.</p><pre><code>type Snapshot struct {\n    Turn int\n    Positions []int // caller-visible immutable copy\n}</code></pre><p>Consume the declared echo, one blank separator and movement batches. Support hyphenated destination names by splitting the ant prefix only once. Validate each turn before exposing its next snapshot. Rendering may interpolate between snapshots, but must not invent different logical motion.</p>",
+  "Spec": "<ol><li>Implement <code>Decode(r,maxBytes)</code> for the academy transcript grammar. Apply a 16 MiB stream cap, line cap and bounded ant/turn counts, and at most 4000000 stored ant-time position cells. Check history growth before copying a next snapshot. Unknown commands remain in the echoed colony but have no movement meaning.</li><li>Return colony room names/coordinates, tunnels, start/end, and immutable snapshots for boundaries 0..T. Validate all tokens and turns independently, require every ant at end and forbid extra movement after completion.</li><li>Reject malformed echo, missing/extra separator, truncated replay, invalid-data solver output, bad ant IDs, unknown destinations, room/tunnel violations and Reader failures. Return no accepted replay on error.</li><li>Snapshot 0 contains every ant at start. Waiting ants retain positions. Arrived ants stay at end. Store stable room indices from the canonical graph and preserve a room-name legend.</li><li>The CLI accepts zero arguments for stdin or one transcript path for fixtures. Print a text table with <code>turn=K positions=name,...</code> in ant ID order.</li><li>Include an integration test using Go os/exec or io.Pipe that handles producer errors and closes pipes. Do not equate pipeline EOF with producer success.</li><li>PowerShell versions differ in native pipeline byte handling. For exact UTF-8 cross-process tests, use a small Go os/exec harness connecting streams directly; the simple native pipe remains the published usage example. No student JavaScript or external package is required.</li></ol>",
+  "Components": [
+    {
+      "Slug": "framing",
+      "Title": "Decode stream framing",
+      "Goal": "Separate accepted colony data from movement lines safely.",
+      "Before": [
+        "What makes the first empty line meaningful?",
+        "How does solver error output differ from an empty colony?"
+      ],
+      "Steps": [
+        "Read within the total/line budgets and propagate Reader errors.",
+        "Find the exact echo separator and parse the colony.",
+        "Reject missing movement data and obvious solver-error streams before producing snapshots."
+      ],
+      "Hint": "The colony grammar rejects blank data lines, so the first empty normalized line is an unambiguous separator. A second empty line is an invalid empty movement turn.",
+      "Trace": "Feed ERROR: invalid data format alone. The decoder must return an error rather than a replay with zero rooms.",
+      "Gate": "Missing separator, extra blank line, truncated input and injected read failure are independently tested."
+    },
+    {
+      "Slug": "snapshots",
+      "Title": "Build immutable validated snapshots",
+      "Goal": "Give rendering a trustworthy room-state timeline.",
+      "Before": [
+        "What mutation would make every stored frame equal to the final frame?",
+        "Where are waiting ants represented?"
+      ],
+      "Steps": [
+        "Create initial positions at start.",
+        "Validate each batch using independent replay rules.",
+        "Append copied next-position arrays with increasing turn numbers."
+      ],
+      "Hint": "Retain n positions even when several ants share start/end. A set of occupied rooms loses ant multiplicity and identity.",
+      "Trace": "For two ants on s-a-t, snapshots are [s,s], [a,s], [t,a], [t,t]. Mutating a test copy of the last slice must not alter the first.",
+      "Gate": "History is immutable, complete and consistent with the original token stream."
+    },
+    {
+      "Slug": "pipeline",
+      "Title": "Test producer and consumer failures",
+      "Goal": "Make pipeline behavior deliberate across platform boundaries.",
+      "Before": [
+        "Who closes a pipe on producer failure?",
+        "How do you avoid blocking while waiting for both processes?"
+      ],
+      "Steps": [
+        "Use bytes.Reader for deterministic unit fixtures.",
+        "Add an io.Pipe test that sends a valid prefix then an error.",
+        "For process integration, start the producer, connect output to the decoder and wait/check both outcomes."
+      ],
+      "Hint": "Use os/exec argument slices rather than a shell command string. This avoids quoting differences and preserves Unicode bytes in the Go integration test.",
+      "Trace": "Terminate the producer after the middle turn. The decoder must reject incomplete replay and the harness must finish without leaking a waiting goroutine.",
+      "Gate": "Valid stream, producer failure, decoder failure and EOF truncation all terminate under a test timeout."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo run . testdata/transcript.txt\n# After building: ./lem-in colony.txt | ./replay-decoder\n# Windows native command prefix: .\\",
+  "Verification": "<p>The fixture's snapshots must be:</p><pre><code>turn=0 positions=s,s\nturn=1 positions=a,s\nturn=2 positions=t,a\nturn=3 positions=t,t</code></pre><ul><li>Delete the final movement: incomplete replay error.</li><li>Append a movement after completion: rejected.</li><li>Use L1-west-hall for an existing hyphenated room: decode the full destination.</li><li>Keep one ant stationary during a turn: its position is retained.</li><li>Mutate one returned snapshot in a test and verify others do not share storage.</li><li>Send a Reader error after a valid prefix: no accepted replay.</li></ul><h2>Exit gate</h2><p>The decoder exposes only fully validated histories and does not import planner logic. Demonstrate a portable Go pipeline test and describe the shell byte-handling assumption separately.</p>",
+  "Engineering": [
+    "Why is a valid EOF different from a successful completed replay?",
+    "What metadata should the renderer receive so it can stay ignorant of token grammar?",
+    "How can aliasing corrupt a replay without changing the original transcript?",
+    "Should a visualizer accept a legal but suboptimal schedule, and how will it describe that distinction?",
+    "Which failures belong to the producer, the decoder and the process harness?",
+    "What portability claims can you make without testing every shell version?",
+    "How does retaining immutable turn boundaries simplify later interpolation?"
+  ],
+  "Practical": [
+    "Delete the last fixture turn and inspect the error.",
+    "Print a waiting ant's position in two consecutive snapshots.",
+    "Add a hyphenated room destination.",
+    "Write an aliasing test across snapshot slices.",
+    "Inject a pipe failure after a valid prefix.",
+    "Run a Go-native producer-consumer test with a UTF-8 room name."
+  ],
+  "Extras": [
+    "Add a text-only replay scrubber driven by input turn numbers. Keep it in Go.",
+    "Add minimal failing-prefix diagnostics without exposing a partial accepted animation.",
+    "Support a replay manifest containing input and transcript hashes for instructor review.",
+    "Allow an iterator interface for large histories while preserving immutable yielded snapshots.",
+    "Add cancellation to producer-consumer integration and prove both processes or goroutines are cleaned up under every error path."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\";\"io\")\nvar ErrTODO=errors.New(\"TODO: implement replay decoder\")\ntype Room struct{Name string;X,Y int}\ntype Snapshot struct{Turn int;Positions []int}\ntype Link struct{A,B int}\ntype Replay struct{Rooms []Room;Links []Link;Start,End int;Frames []Snapshot}\nfunc Decode(r io.Reader,maxBytes int64)(Replay,error){ // TODO: framing, grammar, independent validation and immutable snapshots\n return Replay{},ErrTODO\n}\nfunc Run(args []string,input io.Reader,output io.Writer)error{ // TODO: stdin/file boundary and text timeline\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport (\"testing\";\"strings\")\nfunc TestReplayAcceptance(t *testing.T){\n t.Skip(\"TODO: remove when implementing decoder; add pipe and aliasing cases\")\n s:=\"2\\n##start\\ns 0 0\\na 1 0\\n##end\\nt 2 0\\ns-a\\na-t\\n\\nL1-a\\nL1-t L2-a\\nL2-t\\n\"\n r,e:=Decode(strings.NewReader(s),1<<20)\n if e!=nil||len(r.Frames)!=4{t.Fatalf(\"%+v %v\",r,e)}\n}\n",
+    "testdata/transcript.txt": "2\n##start\ns 0 0\na 1 0\n##end\nt 2 0\ns-a\na-t\n\nL1-a\nL1-t L2-a\nL2-t\n"
+  }
+}

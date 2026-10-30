@@ -1,0 +1,134 @@
+{
+  "ID": "P01",
+  "Slug": "p01-go-field-notebook",
+  "Title": "Go Field Notebook",
+  "Kind": "preparation",
+  "Stage": "01 · Go and colony data",
+  "Hours": 8,
+  "Depends": [],
+  "Summary": "Build a tiny typed notebook CLI while learning modules, values, slices, maps, errors and table-driven tests.",
+  "Overview": "<p>Build a room notebook that accepts small JSON records, validates names and coordinates, and prints a stable inventory. This is your first Go program, so the deliverable includes a working module, an error contract, tests and a short explanation of value versus reference behavior.</p><p>Your existing programming experience helps with loops and conditions. Go adds explicit types, multiple return values, zero values and a compiler that rejects unused imports. Practice these on a small artifact before colony grammar makes failures harder to isolate.</p><h2>Deliverable</h2><p>A CLI reading one JSON array from a file argument and printing one room per line in name order, plus table-driven tests for the pure validation function. This is a notebook format, not the lem-in format. Later projects reuse the <code>Room</code> record and error-handling pattern.</p>",
+  "Reading": [
+    {
+      "Title": "Tutorial: Create a Go module",
+      "URL": "https://go.dev/doc/tutorial/create-module",
+      "Section": "Create a module; Call your code from another module",
+      "Why": "Understand go.mod, package names and local executable builds.",
+      "Mandatory": true
+    },
+    {
+      "Title": "A Tour of Go",
+      "URL": "https://go.dev/tour/list",
+      "Section": "Basics: Packages, variables and functions; Flow control; More types: structs, slices and maps",
+      "Why": "Translate your existing programming knowledge into the Go constructs used here.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Return and handle an error",
+      "URL": "https://go.dev/doc/tutorial/handle-errors",
+      "Section": "Errors as return values",
+      "Why": "Build explicit failure paths without panic for user input.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Add a test",
+      "URL": "https://go.dev/doc/tutorial/add-a-test",
+      "Section": "Test functions and go test",
+      "Why": "Learn the test file and assertion conventions.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Effective Go",
+      "URL": "https://go.dev/doc/effective_go",
+      "Section": "Names; Formatting; Slices; Maps",
+      "Why": "Review idiomatic naming and avoid assuming map iteration is stable.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>A module is the build unit named by <code>go.mod</code>; a package groups Go source files in a directory. <code>package main</code> plus <code>func main()</code> forms an executable. A capitalized identifier is exported. A zero-valued <code>int</code> is 0; a nil map can be read but must be initialized before assignment.</p><p>A slice is a view over an array. Copying its header does not deep-copy its elements. Map lookup returns a second boolean so a missing key can be distinguished from a stored zero. Functions commonly return <code>(value, error)</code>; callers must decide what to do with a non-nil error.</p><pre><code>type Point struct { X, Y int }\np := Point{X: -3, Y: 8}\npoints := []Point{p}\nbyName := make(map[string]Point)\nbyName[\"atrium\"] = points[0]\nq, exists := byName[\"exit\"]\n_, _ = q, exists // remove this teaching placeholder in real code</code></pre><p>This example introduces types; it does not validate or sort notebook records. Use <code>gofmt</code> to format all Go files. Compile errors are useful feedback, not runtime error cases to recover from.</p>",
+  "Spec": "<h2>Notebook contract</h2><ol><li>Accept exactly one input path. Read a JSON array of objects with <code>Name</code>, <code>X</code>, <code>Y</code>. Use only the standard library. Reject malformed JSON, trailing JSON data, missing names and duplicate names.</li><li>Names are nonempty ASCII letters, digits or underscore; the first character cannot be L or #. For this notebook, x/y are Go ints. Negative and coincident coordinates are valid.</li><li>Print accepted rooms in ascending bytewise name order as <code>name x y</code>, one newline per record. Do not mutate the caller's slice when obtaining sorted output.</li><li>Empty arrays are valid and print nothing. Validation errors produce no inventory and return a useful error identifying the offending record.</li><li>Implement <code>ValidateRooms</code> and <code>Inventory</code> as pure functions. The supplied main only delegates to Run; implement JSON decoding and output wiring yourself.</li></ol><h2>Out of scope</h2><p>No tunnels, terminal commands, pathfinding, persistent database or goroutines. This small input grammar is intentionally different from the later colony parser.</p>",
+  "Components": [
+    {
+      "Slug": "values",
+      "Title": "Build the typed model",
+      "Goal": "Make room records and their invariants visible in types and tests.",
+      "Before": [
+        "Which fields are required even when their numeric zero value is valid?",
+        "What does passing a slice copy, and what does it share?"
+      ],
+      "Steps": [
+        "Define two rooms with negative and zero coordinates in a table-driven test.",
+        "Implement name and duplicate validation without relying on map iteration order.",
+        "Return an error before producing output when any record is invalid."
+      ],
+      "Hint": "Track names in a local map, but preserve input order for identifying the first invalid record. A coordinate of zero must never be treated as missing.",
+      "Trace": "Trace [atrium, exit, atrium]. The third record must fail even if its coordinates differ. Trace an empty slice: no error.",
+      "Gate": "Tests cover a valid record, an invalid name, a duplicate, zero coordinates and empty input."
+    },
+    {
+      "Slug": "inventory",
+      "Title": "Build stable inventory output",
+      "Goal": "Separate a valid model from its presentation.",
+      "Before": [
+        "Would sorting the original slice surprise a caller?",
+        "What should appear after the final record?"
+      ],
+      "Steps": [
+        "Create an output ordering without changing the input slice.",
+        "Format signed integer coordinates consistently.",
+        "Compare exact bytes in a golden test and compare the input before and after the call."
+      ],
+      "Hint": "A copy of a slice of Room values is enough because Room contains only strings and ints. Later nested slices need a different copying argument.",
+      "Trace": "For input z 1 0 followed by a -2 5, predict a -2 5 then z 1 0, each ending in LF. Confirm the original first record is still z.",
+      "Gate": "Ten runs produce identical bytes and a mutation check passes."
+    },
+    {
+      "Slug": "cli-tests",
+      "Title": "Connect decoding, errors and tests",
+      "Goal": "Turn the pure functions into a small usable CLI.",
+      "Before": [
+        "Who closes the opened file?",
+        "How can a valid JSON array followed by junk be detected?"
+      ],
+      "Steps": [
+        "Decode one JSON value with encoding/json and require EOF on the next decode.",
+        "Call validation before Inventory, then write the full result and check the write error.",
+        "Add subprocess or Run-level tests using strings.NewReader and bytes.Buffer."
+      ],
+      "Hint": "Keep file ownership in Run. main owns only process exit. Build output in memory for this deliberately small notebook so invalid input cannot print a partial inventory.",
+      "Trace": "Feed a valid array followed by another array. It must fail rather than silently using only the first.",
+      "Gate": "One valid invocation and three distinct failure paths have recorded expected and actual results."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo build -o notebook .\n# Windows executable name: go build -o notebook.exe .\ngo run . testdata/rooms.json",
+  "Verification": "<h2>Concrete cases</h2><p>The supplied JSON fixture contains z at (1,0) and a at (-2,5). After implementation, <code>go run . testdata/rooms.json</code> prints:</p><pre><code>a -2 5\nz 1 0</code></pre><ul><li><code>[]</code>: success and zero output bytes.</li><li>Two rooms named a: validation error and no inventory.</li><li>A room named Lbad or an empty name: validation error.</li><li><code>[</code>, a missing file, and two consecutive JSON arrays: distinct error paths without panic.</li><li>A writer returning an error: Run propagates it.</li></ul><h2>Exit gate</h2><p>Explain why map order cannot define output order, why zero coordinates are valid and why a returned error must be checked. Show gofmt-clean files and tests that verify output bytes and lack of caller mutation.</p>",
+  "Engineering": [
+    "Which invariants belong in a type and which still need runtime validation in this notebook?",
+    "How would pointer fields change your argument that copying the room slice prevents mutation?",
+    "Why can a zero-valued coordinate be valid while a zero-length name cannot?",
+    "Which validation error should win when several records are wrong, and why?",
+    "What does deterministic output buy a reviewer comparing two program runs?",
+    "How would you separate a filesystem error from a record validation error without losing context?",
+    "What evidence shows that a passing test exercises behavior instead of merely reproducing implementation steps?"
+  ],
+  "Practical": [
+    "Add a test with coincident coordinates and different names.",
+    "Reverse fixture record order and confirm the inventory is unchanged.",
+    "Add a trailing JSON value and verify rejection.",
+    "Run gofmt on a deliberately misindented file and inspect the diff.",
+    "Make a test writer fail after a few bytes and inspect the returned error.",
+    "Write a table-driven test with at least four name boundaries."
+  ],
+  "Extras": [
+    "Add a count-only mode. Keep its output contract separate from the inventory mode so tests remain precise.",
+    "Support an optional name prefix filter. Decide whether filtering happens before or after validation and justify it.",
+    "Include line or record context in errors. Preserve the original underlying error where wrapping is useful.",
+    "Add a benchmark comparing sorting a copied slice with sorting an index slice. Measure before choosing.",
+    "Document a migration from value fields to optional coordinate pointers. Explore how missing and zero would differ without implementing a new storage system."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\"; \"io\")\nvar ErrTODO = errors.New(\"TODO: implement notebook\")\ntype Room struct { Name string; X, Y int }\nfunc ValidateRooms(rooms []Room) error { // TODO: name and uniqueness invariants\n return ErrTODO\n}\nfunc Inventory(rooms []Room) (string, error) { // TODO: validate, stable ordering, no caller mutation\n return \"\", ErrTODO\n}\nfunc Run(args []string, input io.Reader, output io.Writer) error { // TODO: exactly one file, decode, validate and write\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport \"testing\"\nfunc TestInventoryAcceptance(t *testing.T) {\n t.Skip(\"TODO: remove when implementing Inventory; add validation and I/O cases\")\n got, err := Inventory([]Room{{Name:\"z\",X:1},{Name:\"a\",X:-2,Y:5}})\n if err != nil || got != \"a -2 5\\nz 1 0\\n\" { t.Fatalf(\"got %q, %v\", got, err) }\n}\n",
+    "testdata/rooms.json": "[{\"Name\":\"z\",\"X\":1,\"Y\":0},{\"Name\":\"a\",\"X\":-2,\"Y\":5}]\n"
+  }
+}

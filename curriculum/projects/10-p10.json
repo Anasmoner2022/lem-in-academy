@@ -1,0 +1,129 @@
+{
+  "ID": "P10",
+  "Slug": "p10-exact-deadline-planner",
+  "Title": "Exact Deadline Planner",
+  "Kind": "preparation",
+  "Stage": "03 · Exact optimization",
+  "Hours": 18,
+  "Depends": [
+    "P09"
+  ],
+  "Summary": "Build a minimum-turn planner from deadline feasibility, integral trajectory extraction and deterministic ant identities.",
+  "Overview": "<p>Build a planner library that takes an already validated graph and returns a minimum-turn schedule. It combines P05's distance lower bound, P09's deadline model and P08's integral max flow. It also extracts concrete ant trajectories and validates their movements with P06.</p><p>This is the last isolated algorithm build before integration. Do not add colony parsing here. The deliverable includes a schedule, a neighboring-deadline infeasibility witness and a correctness argument covering the search, reduction and extraction rather than only the flow engine.</p>",
+  "Reading": [
+    {
+      "Title": "Princeton maxflow study guide",
+      "URL": "https://www.cs.princeton.edu/courses/archive/fall15/cos226/lectures/study/64MaxFlow.html",
+      "Section": "Maximum flow/minimum cut and residual reachability",
+      "Why": "Use a failed deadline's cut as an infeasibility witness.",
+      "Mandatory": true
+    },
+    {
+      "Title": "MIT 6.854 maxflow notes",
+      "URL": "https://courses.csail.mit.edu/6.854/19/Scribe/s6-maxflow/s6-maxflow.html",
+      "Section": "Integral flows and capped augmentations",
+      "Why": "Extract ant-sized units and account for planner work.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Go sort package",
+      "URL": "https://pkg.go.dev/sort",
+      "Section": "Slice; stable ordering",
+      "Why": "Make extraction and movement output repeatable.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Go time package",
+      "URL": "https://pkg.go.dev/time",
+      "Section": "Duration; Now; Since",
+      "Why": "Measure deadline probes without writing timing diagnostics to stdout.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>Let d be the BFS distance from start to end. No ant can arrive before d. Routing all n ants through one shortest simple path as a pipeline finishes by <code>d+n-1</code>, so that is a proven finite upper bound, including d=1.</p><p>Define F(T) as whether deadline T supports value n in the time-expanded network. F is monotone: extend a feasible schedule by keeping every finished ant at end. Binary search finds the first feasible T in [d,d+n-1]; a linear scan is also exact but uses more probes. A resource error is a third result, separate from true and false.</p><p>After the successful flow is found, decompose its positive <em>original</em> flow into n unit source-sink trajectories. The original network is a DAG ordered by time and gadget stage, so repeated unit extraction terminates. Ignore reverse residual arcs. Translate split/connector metadata into one room per boundary, normalize same-side gadget use to waiting and keep early arrivals at end.</p><p>Give trajectories ant IDs 1..n in deterministic extraction order. At each turn emit only IDs whose room changed, in increasing ID order. The planner assigns ants to time trajectories directly; P07's route-length allocation is a useful special case, not an extra heuristic step.</p>",
+  "Spec": "<ol><li>Implement Plan for canonical graph data. Preflight BFS: no route returns a no-route error. Ordinary cycles and irrelevant disconnected components remain valid.</li><li>Use checked d+n-1, then binary search the first feasible deadline using fresh P09/P08 state for each probe. A budget or cancellation error aborts with that distinct error; never treat it as infeasibility or fall back to a greedy answer labelled optimal.</li><li>Rebuild or retain a successful model at the final T and extract exactly n integral trajectories. Validate every forward-flow unit, complete source-sink traversal and one room assignment per ant per boundary.</li><li>Use stable room/edge/model ordering and always choose the first available original outgoing arc in that order for unit extraction. Ant IDs follow extraction order. Do not use map iteration or timing to break ties.</li><li>Convert trajectories to moves, omit waits and sort tokens by ant ID. End is absorbing. Under the academy batch policy, a closed rotation is legal but unnecessary; it may be retained, or normalized only with a documented identity-preserving transformation and tests.</li><li>Check every turn with P06 and require all ants at end. A positive empty turn in a minimum schedule would permit removing that idle turn; detect it as an invariant failure rather than printing a blank movement line.</li><li>For T&gt;d, retain an exhausted max-flow result for T-1 showing value&lt;n and a cut with that value. For T=d, BFS provides the lower bound. Explain why feasibility at T and infeasibility at T-1 prove global minimum turns.</li><li>Let U=d+n-1. With capped BFS flow and O(T(V+E)) model size, one probe costs O(nT(V+E)) and O(T(V+E)) memory. O(log n) probes give O(nU(V+E)log(n+1)) as a safe high-level bound, plus extraction/output. Storing all trajectories adds O(nT) integer cells; preflight the academy ant-time-cell budget or use a proven bounded sparse representation. Bound storage and work before allocation and include emitted token cost.</li></ol>",
+  "Components": [
+    {
+      "Slug": "deadline-search",
+      "Title": "Search the first feasible deadline",
+      "Goal": "Choose a correct optimization boundary with three-valued probe results.",
+      "Before": [
+        "Why is d+n-1 feasible without solving max flow?",
+        "What does a budget failure say about F(T)?"
+      ],
+      "Steps": [
+        "Compute d and checked bounds.",
+        "Write down the binary-search invariant before implementing probes.",
+        "Test that each probe uses fresh residual state and that errors propagate separately."
+      ],
+      "Hint": "A failed allocation cannot move your infeasible bound upward. It supplies no mathematical information about the deadline.",
+      "Trace": "For s-a-t, n=3, bounds are [2,4]. T=3 carries two ants, so the minimum is 4. For two length-two branches and n=3, minimum is 3.",
+      "Gate": "Boundary tests n=1, direct edge and single path all return the expected first feasible T."
+    },
+    {
+      "Slug": "trajectories",
+      "Title": "Extract integral ant trajectories",
+      "Goal": "Turn anonymous flow into a concrete schedule without inventing moves.",
+      "Before": [
+        "Which edge records contain final original flow?",
+        "How is a gadget bounce represented in a room trajectory?"
+      ],
+      "Steps": [
+        "Create a remaining-flow copy for original arcs.",
+        "Peel one stable source-sink unit at a time and decode metadata.",
+        "Require n complete room trajectories of length T+1; normalize waits and retain absorbing end."
+      ],
+      "Hint": "A reverse residual capacity often equals the corresponding original flow, but blindly walking all residual arcs is wrong. Keep original-edge identity from P08.",
+      "Trace": "Extract two ants on s-a-t at T=3. One trajectory is s,a,t,t and the other s,s,a,t, up to deterministic ID assignment.",
+      "Gate": "Flow conservation and extracted trajectory usage agree on every original resource; no residual bookkeeping appears as a colony move."
+    },
+    {
+      "Slug": "schedule-proof",
+      "Title": "Validate output and prove minimality",
+      "Goal": "Join a feasibility witness with a lower-bound witness.",
+      "Before": [
+        "Can a valid schedule still be too slow?",
+        "What does a cut at T-1 prove?"
+      ],
+      "Steps": [
+        "Convert room changes to stable ID-sorted turn batches.",
+        "Pass the schedule through the independently implemented P06 checker.",
+        "Record either BFS lower bound at d or an exhausted T-1 cut, then explain monotonicity."
+      ],
+      "Hint": "The output checker proves legal motion and completion; the neighboring-deadline evidence proves minimality. Neither replaces the other.",
+      "Trace": "For n=3 on a direct edge, print one ant reaching end per turn for three turns. T=2 has shared-gadget cut capacity two.",
+      "Gate": "Every test has a valid schedule and independent lower-bound evidence, with repeated runs byte-identical."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo run . testdata/planner.json",
+  "Verification": "<ul><li>s-a-t, n=3: minimum 4 turns; T=3 flow&lt;3.</li><li>Direct s-t, n=3: minimum 3; one tunnel use each turn.</li><li>Two disjoint length-two branches, n=3: minimum 3; T=2 carries only two.</li><li>P07 greedy counterexample, n=4: a five-turn plan beats shortest-only six; P11 will independently confirm minimum five.</li><li>Unreachable end: no-route error. Add an isolated irrelevant room to a valid graph: same optimum.</li><li>Same input 20 times: identical ant IDs, turn count and token order.</li><li>Inject a model-budget failure: distinct resource error, no claimed optimal schedule.</li></ul><h2>Exit gate</h2><p>Submit the schedule, P06 replay result and the T-1 cut or BFS distance witness. Explain bounds, monotonicity, integrality, reduction correctness and extraction. A greedy route-set selection cannot replace any of these arguments.</p>",
+  "Engineering": [
+    "Why is monotonicity sufficient for binary search but insufficient by itself to certify a probe implementation?",
+    "Which part of the proof would fail if an undirected tunnel were represented by independent directed capacities?",
+    "Can a deterministic planner choose a different optimum from another correct planner?",
+    "How do anonymous flow units become stable ant identities without changing resource use?",
+    "Why must the unsuccessful neighboring deadline be fully exhausted rather than stopped at an arbitrary work count?",
+    "Which costs depend on the ant count and which depend on the number of rooms or the deadline?",
+    "How could a resource-saving optimization preserve validity yet accidentally lose exactness?"
+  ],
+  "Practical": [
+    "Trace the binary search for a three-ant length-two path.",
+    "Check the direct-edge case by hand.",
+    "Inspect one trajectory containing a start wait and an end wait.",
+    "Compare all output bytes over 20 runs.",
+    "Disable a tunnel bottleneck and show a test failure.",
+    "Write a one-page proof connecting flow, schedule and minimum deadline."
+  ],
+  "Extras": [
+    "Add distance pruning and verify the same optimum against unpruned models on tiny cases.",
+    "Reuse model allocation buffers between fresh probes while ensuring residual state is reset.",
+    "Add a certificate export containing model counts, achieved values and the T-1 cut.",
+    "Compare binary search with a linear deadline scan for small n. Measure total network work, not only probe count.",
+    "Prototype a faster exact flow engine behind the same model and cross-check it against the original before considering performance gains."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\";\"io\")\nvar ErrTODO=errors.New(\"TODO: implement exact planner\")\ntype Graph struct { Adj [][]int }\ntype Move struct { Ant,To int }\ntype PlanResult struct { Turns [][]Move; LowerBound int; PreviousFlow int }\nfunc Plan(g Graph,start,end,ants int)(PlanResult,error){ // TODO: bounds, exact deadline probes, integral extraction and independent validation\n return PlanResult{},ErrTODO\n}\nfunc Run(args []string,input io.Reader,output io.Writer)error{ // TODO: decode validated graph fixture and format plan\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport \"testing\"\nfunc TestPlanAcceptance(t *testing.T){\n t.Skip(\"TODO: remove when implementing planner; validate movements independently\")\n p,e:=Plan(Graph{Adj:[][]int{{1},{0,2},{1}}},0,2,3)\n if e!=nil||len(p.Turns)!=4{t.Fatalf(\"%+v %v\",p,e)}\n}\n",
+    "testdata/planner.json": "{\"Adj\":[[1],[0,2],[1]],\"Start\":0,\"End\":2,\"Ants\":3}\n"
+  }
+}

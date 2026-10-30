@@ -1,0 +1,161 @@
+{
+  "ID": "V01",
+  "Slug": "v01-go-gif-visualizer",
+  "Title": "Optional Ant-Farm GIF Visualizer",
+  "Kind": "bonus",
+  "Stage": "Integration · Optional visualizer",
+  "Hours": 20,
+  "Depends": [
+    "P14"
+  ],
+  "Summary": "Combine the Go replay decoder and raster studio into a pipeline consumer that writes an animated colony GIF and a text replay.",
+  "Overview": "<p>Build <code>visualizer</code>, a Go-only consumer of valid lem-in stdout. It reads the echoed colony and ant movements from stdin, validates them, then writes an animated GIF showing ants travelling through the coordinate-defined colony. It also writes a legend and a text replay so the data remains reviewable without animation.</p><p>Reuse P13's immutable validated history and P14's mapper, raster primitives and GIF encoder. Core lem-in must already pass its own readiness gates. The bonus visualizes a schedule; it does not make a slow schedule optimal or repair an illegal one.</p><h2>Feasible standard-library scope</h2><p>GIF is the chosen rendering target because Go's standard library provides raster images and GIF encoding. An installed image viewer or browser can display the file without student JavaScript, a GUI toolkit or a third-party graphics package. A 3D visualizer is mentioned as an extra in the upstream audit, but is not required by this academy's optional 2D bonus.</p>",
+  "Reading": [
+    {
+      "Title": "Official lem-in subject",
+      "URL": "https://github.com/01-edu/public/tree/master/subjects/lem-in",
+      "Section": "Bonus and its pipe example",
+      "Why": "Preserve the producer-consumer interface and use coordinates for visualization.",
+      "Mandatory": true
+    },
+    {
+      "Title": "image/gif package",
+      "URL": "https://pkg.go.dev/image/gif",
+      "Section": "GIF; EncodeAll; DecodeAll",
+      "Why": "Encode bounded animation and verify it independently.",
+      "Mandatory": true
+    },
+    {
+      "Title": "io package",
+      "URL": "https://pkg.go.dev/io",
+      "Section": "Reader; Writer; Pipe",
+      "Why": "Keep stdin consumption and output errors explicit.",
+      "Mandatory": true
+    },
+    {
+      "Title": "os package",
+      "URL": "https://pkg.go.dev/os",
+      "Section": "CreateTemp; Rename; Remove",
+      "Why": "Manage output files safely when generation or writing fails.",
+      "Mandatory": true
+    },
+    {
+      "Title": "flag package",
+      "URL": "https://pkg.go.dev/flag",
+      "Section": "FlagSet and error handling",
+      "Why": "Offer a small optional -out flag while preserving the no-argument pipeline.",
+      "Mandatory": false
+    },
+    {
+      "Title": "Official audit",
+      "URL": "https://github.com/01-edu/public/blob/master/subjects/lem-in/audit/README.md",
+      "Section": "General visualizer questions",
+      "Why": "Distinguish the suggested visual bonus from mandatory solver behavior.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>Composition should keep parsing, simulation and rendering independent. P13 produces a validated history with room names, coordinates, tunnels and one position per ant at each boundary. P14 maps the fixed scene once and draws frames from those positions.</p><p>Interpolate only movement positions between validated boundaries. An ant traverses the drawn tunnel from its old room to its new one; waiting ants stay fixed. Collocated start/end ants can be rendered as a deterministic compact cluster or an aggregate marker, while the companion text preserves every ID.</p><p>Preflight the whole output before large frame allocation. A GIF is binary output, so do not mix diagnostic text into it. This academy writes binary GIF to a named file and leaves stdout available for a concise file summary. Invalid input must not leave an apparently successful final GIF.</p><pre><code>// Published interface after students finish both executables:\n// ./lem-in ant-farm.txt | ./visualizer\n// Result: farm.gif, legend.txt, replay.txt in the current directory.</code></pre>",
+  "Spec": "<ol><li>Compile the CLI as <code>visualizer</code>. With no arguments read stdin and write <code>farm.gif</code>, <code>legend.txt</code> and <code>replay.txt</code>. Optionally support <code>-out path.gif</code>, with companion files in the same selected directory.</li><li>Decode the complete academy transcript using P13, independently validate legal movement and completion, and reject solver error output, malformed/truncated streams and Reader failures. A legal but suboptimal transcript can be visualized; label the output as a replay, never a proof of optimum.</li><li>Draw every room and tunnel from the colony. Fit the supplied coordinates with P14's aspect-preserving transform, including negatives, zero spans and coincidences. Room identity is independent from coordinates.</li><li>Use four interpolation frames per logical turn at the declared timing, plus initial/final holds. Draw ants moving along their actual tunnels; keep waiting/arrived ants represented. End on the actual all-end snapshot.</li><li>Preserve names and every ant's identity in legend/replay text. If the image aggregates terminal ants or separates coincident markers for visibility, document that display policy and retain exact positions in the companion text.</li><li>Keep all student code standard-library-only, with no browser script, third-party fonts, graphics library or external encoder. GIF, PNG and text files are generated by Go.</li><li>Apply P13's input bounds and P14's frame, dimension and total-pixel bounds; check arithmetic before allocation. Return a distinct resource error without dropping turns, shrinking the requested dimensions silently or presenting a partial final GIF as success.</li><li>Use temporary files in the destination directory while writing. Finalize only after encoding and closing succeed; clean up owned temporary files on failure. Do not overwrite an existing output set without an explicit documented -overwrite flag. Multi-file rename is not fully atomic: document cleanup and rollback behavior.</li><li>On success stdout names the three files; diagnostics go to stderr and failures return nonzero. No auto-opening viewer is required. Include decode-back metadata tests, logical-boundary pixel checks, pipeline tests and actual visual inspection.</li></ol>",
+  "Components": [
+    {
+      "Slug": "decoder-boundary",
+      "Title": "Connect the validated replay boundary",
+      "Goal": "Make the visualizer consume the same observable stream as an external reviewer.",
+      "Before": [
+        "Does the renderer need to know how Lx-y tokens are spelled?",
+        "What happens if lem-in prints an invalid-data line?"
+      ],
+      "Steps": [
+        "Integrate P13 as a Reader-based input package.",
+        "Retain coordinates, tunnels, names and copied snapshots.",
+        "Validate output destinations and resource estimates before image allocation."
+      ],
+      "Hint": "Never bypass replay validation just because the producer is your own solver. Pipe fixtures should include a deliberately corrupted stream.",
+      "Trace": "Pass a valid echo and only half its movements. No final GIF or success message should remain.",
+      "Gate": "Valid, invalid-data, malformed, truncated and failing-reader streams have distinct tested outcomes."
+    },
+    {
+      "Slug": "scene",
+      "Title": "Render a faithful colony and ant motion",
+      "Goal": "Keep the graphical story consistent with logical replay state.",
+      "Before": [
+        "How will terminal crowds be shown without losing ant counts?",
+        "How do coincident coordinates affect visibility but not identity?"
+      ],
+      "Steps": [
+        "Map the static scene once and render all tunnels/rooms in stable order.",
+        "Choose a documented terminal/overlap display policy.",
+        "Render each interpolation frame from immutable old/new positions and preserve exact boundary frames."
+      ],
+      "Hint": "Use the text replay to check any visually ambiguous terminal crowd. The image is a display of state, not the authoritative identity store.",
+      "Trace": "Inspect a two-ant pipeline on s-a-t. At the middle boundary, one ant is at end and the other at a; a persistent trail must not suggest two ants share a.",
+      "Gate": "First, intermediate and final keyframes agree with independently decoded logical snapshots."
+    },
+    {
+      "Slug": "files",
+      "Title": "Write bounded outputs safely",
+      "Goal": "Avoid confusing failed or partial artifacts with successful visualization.",
+      "Before": [
+        "When can output files be renamed to final paths?",
+        "What happens if the second companion write fails?"
+      ],
+      "Steps": [
+        "Check destination collisions and require explicit overwrite policy.",
+        "Encode and close owned temporary outputs, tracking every error.",
+        "Finalize the output set and document/implement cleanup if a later rename fails."
+      ],
+      "Hint": "Closing a file can fail too. Do not declare success immediately after gif.EncodeAll returns if later file operations are still pending.",
+      "Trace": "Inject a Writer that fails after a prefix. The final farm.gif path must not be presented as a completed artifact.",
+      "Gate": "Output collision, encode failure, close failure and finalization failure have deliberate outcomes."
+    },
+    {
+      "Slug": "review",
+      "Title": "Verify the real pipeline and animation",
+      "Goal": "Combine machine checks with a viewed replay.",
+      "Before": [
+        "What can decode-back tests prove that visual inspection cannot?",
+        "What remains viewer-dependent?"
+      ],
+      "Steps": [
+        "Run the corridor fixture through stdin and decode the resulting GIF back in Go tests.",
+        "Compare frame count, delay array, dimensions and final ant positions.",
+        "Inspect desktop and mobile-sized image viewing plus legend/replay readability, recording the viewer used."
+      ],
+      "Hint": "Some viewers ignore tiny delays; the encoded metadata remains testable. This bonus uses 10-centisecond subframes to avoid relying on extremely short timing.",
+      "Trace": "For T=3, expect 4T+2=14 frames, initial/final delays 40 and twelve intermediate delays 10.",
+      "Gate": "The GIF visibly moves ants along tunnels, has no ghost trails, ends with all ants at end and has accurate companion text."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo build -o visualizer .\n# Windows executable name: go build -o visualizer.exe .\n# Unix, after building the completed solver:\n# ./lem-in colony.txt | ./visualizer\n# Windows PowerShell native pipeline:\n# .\\lem-in.exe colony.txt | .\\visualizer.exe\n# For byte-exact portable tests, connect processes with Go os/exec.\n# POSIX shell fixture: go run . < testdata/transcript.txt\n# PowerShell: use the Go os/exec test harness for exact input bytes.",
+  "Verification": "<p>The fixture contains three turns, so expect 14 GIF frames at the configured four-subframe rate, with first/last holds of 40 centiseconds. All ants must end at t in replay.txt.</p><ul><li>Corridor, two-branch colony, negative coordinates, zero-span axes and coincident rooms: all render without panic.</li><li>Hyphenated and UTF-8 names survive the legend; names need not fit inside a room marker.</li><li>Decode the output with gif.DecodeAll and compare frame dimensions, count, delays and final keyframe pixels.</li><li>Invalid solver output, truncated replay, bad move and resource breach: no final success artifact.</li><li>Existing output files without -overwrite: clear error and unchanged files.</li><li>Inspect real motion in a viewer; compare several logical boundaries with replay.txt, checking waits, terminal crowds and no trails.</li></ul><h2>Exit gate</h2><p>Core L01 readiness remains separate. The optional bonus is review-ready only after a real pipeline, decode-back checks, failure cleanup tests and viewed animation pass. Record any untested shell/viewer combinations honestly.</p>",
+  "Engineering": [
+    "Why should a visualizer validate movement even when it consumes your own solver's stdout?",
+    "Can a beautiful animation mislead a reviewer about minimum turns?",
+    "How do you balance visual separation of coincident rooms with preserving supplied coordinates?",
+    "What is the simplest accessible representation of every ant when start/end contain many?",
+    "Why is multi-file output finalization more complicated than renaming one GIF?",
+    "What correctness claim survives when a viewer changes playback timing?",
+    "How would you extend the renderer while keeping the Go-only standard-library boundary?"
+  ],
+  "Practical": [
+    "Generate the corridor replay and inspect turn 2 against replay.txt.",
+    "Decode the GIF and assert 14 frames.",
+    "Add coincident room coordinates and document the display result.",
+    "Feed an invalid-data line through stdin.",
+    "Create an output collision and confirm original bytes remain unchanged.",
+    "Force a low pixel budget and confirm there is no success artifact.",
+    "Record the viewer and shell used for the final pipeline check."
+  ],
+  "Extras": [
+    "Add a Go-generated PNG contact sheet alongside the GIF for static review.",
+    "Add numeric bitmap room IDs and ant IDs where space permits, retaining the text legend.",
+    "Add configurable turn duration with a documented rounding policy for GIF delays.",
+    "Render deterministic terminal clusters or count glyphs for large ant populations.",
+    "Explore a Go-only isometric projection using the same raster primitives as a stretch project; retain 2D replay correctness and do not add an unrequested graphics dependency."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\";\"io\")\nvar ErrTODO=errors.New(\"TODO: implement visualizer integration\")\ntype Options struct {Path string;Width,Height int;Overwrite bool}\nfunc Visualize(input io.Reader,options Options)error{ // TODO: validated replay, coordinate transform, bounded GIF and companion files\n return ErrTODO\n}\nfunc Run(args []string,input io.Reader,output io.Writer)error{ // TODO: flags, stdin, safe output finalization and summary\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport (\"testing\";\"strings\";\"path/filepath\";\"os\";\"image/gif\")\nfunc TestVisualizerAcceptance(t *testing.T){\n t.Skip(\"TODO: remove after implementation; add replay, cleanup and pixel checks\")\n path:=filepath.Join(t.TempDir(),\"farm.gif\")\n transcript:=\"2\\n##start\\ns 0 0\\na 1 0\\n##end\\nt 2 0\\ns-a\\na-t\\n\\nL1-a\\nL1-t L2-a\\nL2-t\\n\"\n if e:=Visualize(strings.NewReader(transcript),Options{Path:path,Width:320,Height:240});e!=nil{t.Fatal(e)}\n f,e:=os.Open(path);if e!=nil{t.Fatal(e)};defer f.Close()\n a,e:=gif.DecodeAll(f);if e!=nil||len(a.Image)!=14{t.Fatalf(\"frames=%v err=%v\",a,e)}\n}\n",
+    "testdata/transcript.txt": "2\n##start\ns 0 0\na 1 0\n##end\nt 2 0\ns-a\na-t\n\nL1-a\nL1-t L2-a\nL2-t\n"
+  }
+}

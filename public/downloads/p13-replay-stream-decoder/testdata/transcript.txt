@@ -1,0 +1,12 @@
+2
+##start
+s 0 0
+a 1 0
+##end
+t 2 0
+s-a
+a-t
+
+L1-a
+L1-t L2-a
+L2-t

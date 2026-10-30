@@ -1,0 +1,198 @@
+{
+  "ID": "L01",
+  "Slug": "l01-lem-in",
+  "Title": "Lem-in: Minimum-Turn Colony",
+  "Kind": "assignment",
+  "Stage": "Integration · Core lem-in",
+  "Hours": 40,
+  "Depends": [
+    "P12"
+  ],
+  "Summary": "Integrate the prepared Go components into a file-driven lem-in CLI with exact minimum-turn planning and independent movement validation.",
+  "Overview": "<p>Build the actual <code>lem-in</code> executable. It accepts one colony file, finds a legal schedule delivering every ant in the fewest turns, echoes the accepted input and prints one movement line per turn. This is the integration assignment, not a new opportunity to replace exact planning with a greedy shortcut.</p><p>Reuse the reader from P02, grammar from P03, graph from P04, BFS from P05, independent checker from P06, residual engine from P08, time model from P09, exact planner from P10 and evidence tools from P11/P12. P01 supplies Go foundations; P07 explains allocation and greedy failure. Port these into one module with clear package boundaries and no third-party dependencies.</p><h2>Deliverable</h2><p>Source, meaningful tests, adversarial fixtures, a README with the published academy policies and algorithm proof, repeatable verification commands, a complexity/resource note and measured audit compatibility results. The supplied starter deliberately contains no solver.</p>",
+  "Reading": [
+    {
+      "Title": "Official lem-in subject",
+      "URL": "https://github.com/01-edu/public/tree/master/subjects/lem-in",
+      "Section": "Entire subject: Objectives, Instructions, Allowed packages, Usage, Bonus",
+      "Why": "Understand the assignment and separate mandatory behavior from bonus scope.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Official audit",
+      "URL": "https://github.com/01-edu/public/blob/master/subjects/lem-in/audit/README.md",
+      "Section": "Functional, General and Basic checks",
+      "Why": "Review movement, compatibility, error and timing expectations.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Official examples",
+      "URL": "https://github.com/01-edu/public/blob/master/subjects/lem-in/examples/README.md",
+      "Section": "All valid and invalid examples",
+      "Why": "Build fixtures from the exact source data, preserving names and coordinates.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Official good practices",
+      "URL": "https://github.com/01-edu/public/blob/master/subjects/good-practices/README.md",
+      "Section": "Code; Go; Time Limitation",
+      "Why": "Review structure, naming, errors, formatting and bounded execution.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Effective Go",
+      "URL": "https://go.dev/doc/effective_go",
+      "Section": "Formatting; Names; Errors; Interfaces",
+      "Why": "Keep integration idiomatic and testable.",
+      "Mandatory": false
+    },
+    {
+      "Title": "Go testing",
+      "URL": "https://pkg.go.dev/testing",
+      "Section": "Subtests; Fuzzing; Benchmarks",
+      "Why": "Produce behavior and performance evidence rather than just successful compilation.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>The pipeline is <strong>read → parse → canonical graph → reachability → exact deadline search → trajectory extraction → independent replay → format → write</strong>. Each boundary has a typed result or error. Do not echo anything before the complete plan has passed validation.</p><p>For a graph with shortest distance d and n ants, search deadlines in [d,d+n-1]. Each deadline uses integral max flow on a time-expanded network with room splits, holdovers and one shared tunnel bottleneck per turn. Successful flow becomes n trajectories; omitted movements are waits. A BFS lower bound or exhausted T-1 cut supports the minimum-turn claim.</p><p>The upstream second usage example demonstrates pipelining into a room vacated that turn. The academy interprets turns as batches with departures before arrivals, validates occupancy at each boundary and sorts tokens by ant ID. Ant identity never grants extra room or tunnel capacity.</p><pre><code>type Schedule struct { Turns [][]Move }\n// These boundaries remain your implementation work:\n// ReadColony, Optimize, ValidateSchedule, FormatTranscript, Execute.</code></pre><p>Read the full <a href=\"../../policies.html\">academy policy</a> and <a href=\"../../brief.html\">assignment brief</a>. Local decisions are labelled; the original upstream snapshots are retained separately.</p>",
+  "Spec": "<h2>Mandatory behavior</h2><ol><li>Name the compiled CLI <code>lem-in</code>. Accept exactly one file argument. Read the colony from that file; stdin is not a substitute for the mandatory argument.</li><li>Start n numbered ants at start and deliver all to end in the minimum number of movement turns. Each ant moves at most once per turn along one existing tunnel. Ordinary rooms hold at most one ant; start/end have unlimited occupancy. Each undirected tunnel is used once at most per turn.</li><li>Accept room names, coordinates, commands and tunnels under the complete <a href=\"../../policies.html\">published grammar</a>. Names are not assumed numeric or ordered. Coordinates are signed ints used only by the bonus. Ignore unknown commands semantically while retaining them in the accepted echo.</li><li>Reject malformed counts, missing or duplicate terminals, duplicate rooms, invalid/overflowing coordinates, bad endpoint syntax, unknown endpoints, self-links, duplicate/reversed tunnels and no route. Ordinary cycles and disconnected extra rooms are valid if a start-end route remains.</li><li>Use the exact P09/P10 method, or submit an alternative exact algorithm with a comparably complete correctness argument and independent evidence. A fixed greedy route set, maximum disjoint-path count alone, or one BFS path is insufficient.</li><li>Success stdout is normalized accepted input with one final LF, one additional blank separator line, then nonempty movement lines. Tokens are <code>L&lt;ant&gt;-&lt;destination-name&gt;</code>, ascending ant ID within a turn, separated by one ASCII space and no trailing spaces. End the transcript with LF.</li><li>Ant IDs are stable: canonicalize names/edges, use stable model arc insertion and unit extraction order, assign IDs 1..n by extraction. Multiple valid optima may differ between independently written solvers; repeated runs of one implementation must match exactly.</li><li>Use the process stream and exit contract from P12. Invalid data/no route: stdout error prefix and exit 1, no echo. Usage/I/O: stderr and exit 2. Resource refusal: stderr and exit 3, no claimed plan. Success: exit 0.</li><li>Keep assessed code standard-library-only. Include meaningful unit, integration, mutation and fuzz tests. Explain resource limits and all successful-run exactness guarantees. Publish performance evidence for the upstream audit examples before claiming audit readiness.</li></ol><h2>Academy additions and scope</h2><p>The stricter numeric spelling, ambiguous hyphen resolution, whitespace/echo policy, simultaneous turn convention, ordering, streams, exits and budgets are academy policies. They are independently testable and may need adjustment if the local institution uses different interpretations. The GIF visualizer is a separate optional project after P13/P14. No GUI, browser JavaScript, third-party graph library or ready-made solver is required.</p>",
+  "Components": [
+    {
+      "Slug": "input",
+      "Title": "Integrate bounded input and colony grammar",
+      "Goal": "Accept a complete colony or return a deliberate error before any echo.",
+      "Before": [
+        "Which P02 bytes are normalized and which must survive?",
+        "Which malformed records belong to syntax versus later reachability?"
+      ],
+      "Steps": [
+        "Move the reader and parser into clear internal packages.",
+        "Preserve normalized Echo alongside parsed records and line-aware errors.",
+        "Implement process-level malformed fixtures from P03's mutation table."
+      ],
+      "Hint": "An ignored unknown command must remain in Echo. Reconstructing accepted input from room structs would silently remove it.",
+      "Trace": "Insert ##color before a room, convert LF to CRLF and remove the final newline. Semantic parsing should be unchanged, and Echo should follow the stated normalization.",
+      "Gate": "Every grammar failure yields one invalid-data line, no echo, no panic and the declared exit status."
+    },
+    {
+      "Slug": "graph-bounds",
+      "Title": "Integrate graph identity and route bounds",
+      "Goal": "Make reachability and deterministic ordering explicit before optimization.",
+      "Before": [
+        "Can an isolated extra room invalidate a valid start-end route?",
+        "What proves the finite upper deadline?"
+      ],
+      "Steps": [
+        "Canonicalize room and edge identity using P04.",
+        "Run BFS for d and reject no route deliberately.",
+        "Calculate checked [d,d+n-1] bounds and retain distance metadata for proof and optional safe pruning."
+      ],
+      "Hint": "Coordinates are not distances. A long drawn tunnel still costs one movement turn.",
+      "Trace": "Add a disconnected triangle to a valid corridor. The route and optimum remain unchanged; the parser and graph must not reject ordinary cycles.",
+      "Gate": "Nonnumeric names, unordered definitions, cycles and disconnected extras all have acceptance tests."
+    },
+    {
+      "Slug": "flow-model",
+      "Title": "Integrate residual flow and deadline models",
+      "Goal": "Preserve both room and shared tunnel capacities through time.",
+      "Before": [
+        "What would happen if the start-end edge were assigned capacity n?",
+        "How does a failed allocation differ from an infeasible deadline?"
+      ],
+      "Steps": [
+        "Connect P08's generic solver to P09's metadata-rich model.",
+        "Keep fresh residual state per probe and propagate budget errors.",
+        "Run the countertests for removed room splits and independent tunnel directions."
+      ],
+      "Hint": "Do not repair capacity violations later by delaying ants heuristically. The feasibility model must already represent the exact deadline problem.",
+      "Trace": "For a direct edge and three ants, prove that two layers of tunnel use cannot carry three flow units.",
+      "Gate": "Every model constraint has a targeted test and the P09 correspondence argument survives integration."
+    },
+    {
+      "Slug": "extract-schedule",
+      "Title": "Extract ants and validate every turn",
+      "Goal": "Convert an anonymous feasible flow into an observable legal schedule.",
+      "Before": [
+        "Which original arcs retain physical room-time meaning?",
+        "How are waits kept out of the movement text?"
+      ],
+      "Steps": [
+        "Peel n unit paths using stable original flow order.",
+        "Decode room trajectories and normalize same-side gadget traversals to waits.",
+        "Pass every turn through an independent validator and require all ants at end."
+      ],
+      "Hint": "Keep the validator independent from move generation. A helper used by both to decide edge legality can make the same mistake twice.",
+      "Trace": "For three ants on s-a-t, one valid optimal transcript has launches on turns 1,2,3 and final arrival on turn 4. Different extraction IDs are allowed only if deterministic and all constraints still hold.",
+      "Gate": "Every generated schedule passes the black-box movement checker and repeated output comparison."
+    },
+    {
+      "Slug": "process",
+      "Title": "Wire transcript and process outcomes",
+      "Goal": "Make the executable contract match the curriculum contract exactly.",
+      "Before": [
+        "What can safely be printed before optimization finishes?",
+        "Where should an I/O error after partial output be reported?"
+      ],
+      "Steps": [
+        "Map typed invalid-data, usage/I/O and resource errors at one Execute boundary.",
+        "Format accepted Echo, exactly one blank separator and ID-sorted movement lines.",
+        "Check write errors and keep all diagnostics off successful stdout."
+      ],
+      "Hint": "Use a status-returning process adapter so tests can inspect stdout, stderr and status without calling os.Exit. main is only the final adapter.",
+      "Trace": "Force a planner timeout with valid input. stdout must remain empty, stderr must identify resource exhaustion and exit must be 3.",
+      "Gate": "Subprocess tests assert all stream and exit outcomes, including missing files and invalid argument counts."
+    },
+    {
+      "Slug": "proof-release",
+      "Title": "Prove and review the finished solver",
+      "Goal": "Present evidence for legality, minimality and operational behavior.",
+      "Before": [
+        "Which evidence proves minimum turns rather than just a valid replay?",
+        "Which external audit assumptions remain institution-specific?"
+      ],
+      "Steps": [
+        "Run P11's differential campaign and targeted greedy-trap case.",
+        "Retain T-1 cut or BFS-bound evidence for representative tests.",
+        "Benchmark the source audit's large-ant examples and document hardware, Go version, limits and results."
+      ],
+      "Hint": "A slow but legal plan fails the core objective. A timeout also fails a performance gate even if it is handled gracefully; do not rename that outcome success.",
+      "Trace": "For an n=1 colony, minimum equals BFS distance d. For multiple ants, show a case where capacity rather than d determines the last arrival.",
+      "Gate": "A reviewer can reproduce tests, explain the algorithm proof and audit limits without accessing private implementation assumptions."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo build -o lem-in .\n# Windows executable name: go build -o lem-in.exe .\ngo run . testdata/corridor.txt\n# Unix: ./lem-in testdata/corridor.txt\n# Windows PowerShell: .\\lem-in.exe testdata/corridor.txt",
+  "Verification": "<h2>One valid optimum, not an ID assignment oracle</h2><p>For the supplied three-ant corridor, a valid four-turn suffix is:</p><pre><code>L1-a\nL1-t L2-a\nL2-t L3-a\nL3-t</code></pre><p>Your deterministic extraction may assign IDs differently. The checker must still find four legal turns, all ants at end and valid output spelling. Compare exact bytes only across repeated runs of your own declared tie-breaking implementation.</p><h2>Required evidence cases</h2><ul><li>Direct edge, n=3: three turns; two disjoint length-two branches, n=3: three turns.</li><li>P07 greedy trap, n=4: minimum five turns; a six-turn shortest-only answer fails optimality.</li><li>Ordinary cycle, disconnected extra room and nonnumeric unordered names: accepted when a route exists.</li><li>Every P03 grammar mutation and every P06 movement mutation: deliberately classified.</li><li>P11's 3294 tiny graph/ant cases: compare optimum and replay every returned plan; report all skips.</li><li>Source examples 00..05: audit ceilings 6,8,11,6,6,8 respectively. Treat ceilings as compatibility checks, not proof that every displayed upstream schedule is optimal.</li><li>Source examples 06/07 with 100/1000 ants: below 90/150 seconds on recorded hardware for audit readiness.</li><li>Same input 20 runs: identical output. Limits, cancellation and failing writers: no crash or false optimality claim.</li></ul><h2>Final exit gate</h2><p>Source builds, tests and vet pass; acceptance tests are enabled; no TODO core stubs remain; dependency review is standard-library-only; every returned schedule is legal; exactness proof and independent tiny evidence agree; process and resource behavior are documented. Instructor review is required before claiming readiness. This hub does not mark learner completion.</p>",
+  "Engineering": [
+    "Which part of your program is trusted to decide whether a deadline is feasible, and how did you test that trust?",
+    "Can your proof handle waiting, direct tunnels and ordinary cycles without special-case guesses?",
+    "Why is a maximum set of disjoint routes not sufficient evidence of minimum makespan?",
+    "What must change if an institution interprets receiving-room emptiness sequentially rather than as a batch?",
+    "How does your extraction order determine ant IDs without changing the objective?",
+    "Which resource refusals can occur for valid input, and how do you explain them honestly?",
+    "Which independent evidence would convince another instructor who has not read your implementation?",
+    "What assumption in your algorithm or CLI contract is academy policy rather than explicit upstream text?"
+  ],
+  "Practical": [
+    "Run the corridor fixture and independently replay each turn.",
+    "Add a direct-edge three-ant test.",
+    "Add an irrelevant disconnected component and compare the optimum.",
+    "Mutate a valid transcript to reuse one tunnel twice.",
+    "Capture all process outcomes with stdout, stderr and exit status.",
+    "Present the T-1 witness for a bottleneck case.",
+    "Run the published large-ant timing cases and record actual measurements."
+  ],
+  "Extras": [
+    "Improve diagnostic suffixes while preserving the required invalid-data prefix and process contract.",
+    "Add safe distance pruning and demonstrate unchanged tiny-oracle results.",
+    "Export an instructor certificate with input hash, optimum, model size and neighboring-deadline witness.",
+    "Profile the exact solver and optimize allocations only where measurements justify it.",
+    "Continue to P13/P14 and the optional GIF visualizer after core readiness; keep visualization independent from planning correctness."
+  ],
+  "Files": {
+    "main.go": "package main\nimport \"os\"\nfunc main(){os.Exit(Execute(os.Args[1:],os.Stdout,os.Stderr))}\n",
+    "core.go": "package main\nimport (\"errors\";\"io\")\nvar ErrTODO=errors.New(\"TODO: implement lem-in integration\")\ntype Room struct {Name string; X,Y int}\ntype Link struct {A,B int}\ntype Colony struct {Ants int; Rooms []Room; Links []Link; Start,End int; Echo string}\ntype Move struct {Ant,To int}\ntype Schedule struct {Turns [][]Move}\nfunc ReadColony(r io.Reader)(Colony,error){ // TODO: bounded reading, grammar and complete validation\n return Colony{},ErrTODO\n}\nfunc Optimize(c Colony)(Schedule,error){ // TODO: exact deadline planning using prepared components\n return Schedule{},ErrTODO\n}\nfunc ValidateSchedule(c Colony,s Schedule)error{ // TODO: independent movement replay and completion\n return ErrTODO\n}\nfunc FormatTranscript(c Colony,s Schedule)([]byte,error){ // TODO: normalized echo, separator, deterministic move tokens\n return nil,ErrTODO\n}\nfunc Execute(args []string,out,errout io.Writer)int{ // TODO: process adapter with typed errors, streams and exit statuses\n _,_ = io.WriteString(errout,ErrTODO.Error()+\"\\n\")\n return 3\n}\n",
+    "core_test.go": "package main\nimport (\"testing\";\"strings\")\nfunc TestCorridorAcceptance(t *testing.T){\n t.Skip(\"TODO: enable after implementation; add full CLI, oracle and movement tests\")\n c,e:=ReadColony(strings.NewReader(\"3\\n##start\\ns 0 0\\na 1 0\\n##end\\nt 2 0\\ns-a\\na-t\\n\"))\n if e!=nil{t.Fatal(e)}\n s,e:=Optimize(c)\n if e!=nil||len(s.Turns)!=4{t.Fatalf(\"%+v %v\",s,e)}\n if e=ValidateSchedule(c,s);e!=nil{t.Fatal(e)}\n}\n",
+    "testdata/corridor.txt": "3\n##start\ns 0 0\na 1 0\n##end\nt 2 0\ns-a\na-t\n",
+    "PROOF.md": "# Student proof worksheet\n\nTODO: state turn semantics and exact objective.\nTODO: prove schedule-to-flow and flow-to-schedule, including shared undirected tunnels and waits.\nTODO: prove lower/upper deadlines and monotonicity.\nTODO: explain integral extraction and deterministic IDs.\nTODO: attach independent tiny-oracle evidence and neighboring-deadline witness.\nTODO: describe complexity, budgets and measured audit timings.\n"
+  }
+}

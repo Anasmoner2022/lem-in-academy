@@ -1,0 +1,19 @@
+/* Shared forum palette and components, adapted for this standalone Go track. */
+.chapter-nav {display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;border-top:1px solid var(--border);margin-top:2.5rem;padding-top:1.5rem}
+.chapter-nav a {padding-block:.5rem;min-height:44px}
+.reading-content {overflow-wrap:break-word}
+.phase-card:first-child {grid-row:auto}
+.assignment-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
+.stage {border-left:2px solid var(--accent);padding-left:1.5rem;margin-block:2.5rem}
+.stage h2 {border:0;padding:0}
+.callout {padding:1.2rem 1.5rem;border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;background:var(--surface);margin-block:1.5rem}
+.callout p:last-child {margin-bottom:0}
+.mini-meta {color:var(--muted);font-size:.875rem}
+details {border:1px solid var(--border);padding:1rem;border-radius:8px;margin-block:1rem}
+summary {cursor:pointer;min-height:44px;color:var(--accent)}
+:where([id], :focus) {scroll-margin-block-start:7rem}
+.table-scroll:focus-visible {outline:3px solid var(--accent);outline-offset:4px}
+figure {margin:0;min-width:0} figure img {display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:10px} figcaption{font-size:.875rem;color:var(--muted);margin-top:.5rem}
+.hub-hero h1 {font-size:clamp(2.8rem,1.5rem + 4vw,4.65rem)}
+.site-nav a {min-height:44px;display:inline-flex;align-items:center}
+@media(max-width:40.625rem){.assignment-grid{grid-template-columns:minmax(0,1fr)}.hub-hero h1{font-size:clamp(2.5rem,1.2rem + 6vw,3.5rem)}.site-header{position:relative}:where([id], :focus){scroll-margin-block-start:1rem}.stage{padding-left:1rem}.chapter-nav{font-size:.875rem}}

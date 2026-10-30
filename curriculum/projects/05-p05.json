@@ -1,0 +1,122 @@
+{
+  "ID": "P05",
+  "Slug": "p05-bfs-route-finder",
+  "Title": "Queue and BFS Route Finder",
+  "Kind": "preparation",
+  "Stage": "02 · Graphs and turn safety",
+  "Hours": 10,
+  "Depends": [
+    "P04"
+  ],
+  "Summary": "Build a queue, shortest-distance search and parent-based route reconstruction that handles cycles and unreachable destinations.",
+  "Overview": "<p>Build a shortest-route inspector for an unweighted colony graph. It prints the shortest distance and one deterministic route, or a clear unreachable result. This is the correct tool for one ant's minimum travel time and a lower bound for many ants.</p><p>Reuse P04's canonical graph. You will build a queue with a head index, discover vertices once and reconstruct a path from parents. The artifact deliberately stops before claiming that one shortest route is an optimal multi-ant plan.</p>",
+  "Reading": [
+    {
+      "Title": "Algorithms, 4th Edition",
+      "URL": "https://algs4.cs.princeton.edu/41graph/",
+      "Section": "Breadth-first search; shortest paths",
+      "Why": "Understand why layer order yields shortest edge count.",
+      "Mandatory": true
+    },
+    {
+      "Title": "A Tour of Go",
+      "URL": "https://go.dev/tour/list",
+      "Section": "More types: slices, append and range",
+      "Why": "Build the queue and parent arrays in Go.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Go testing",
+      "URL": "https://pkg.go.dev/testing",
+      "Section": "Subtests; Benchmarks",
+      "Why": "Verify reachability, reconstruction and scaling separately.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>BFS explores all vertices at distance k before distance k+1. Each tunnel costs one turn for one ant, regardless of coordinate length. Set a vertex's parent and distance when it is discovered, then enqueue it once.</p><pre><code>queue := make([]int, 0, len(g.Adj))\nhead := 0\n// Your search owns discovery and enqueueing.\n// Advancing head avoids repeatedly removing index zero.</code></pre><p>Use a sentinel such as -1 for undiscovered distance or a separate seen slice. A parent value of 0 cannot by itself mean undiscovered because vertex 0 is real. Path reconstruction walks destination → parent → source and then reverses that list. An unreachable destination has no parent chain to follow.</p><p>BFS gives an O(V+E) search with an O(V) queue and metadata. Enumerating all simple paths is potentially exponential and is unnecessary for this task.</p>",
+  "Spec": "<ol><li>Implement <code>Shortest(g,start,end)</code> returning one path including both endpoints and its edge count. Validate indices and adjacency integrity.</li><li>Use P04's sorted neighbors so equal-length route selection is deterministic. Mark discovery before enqueueing.</li><li>For start==end return a one-vertex path and distance 0 in this general-purpose tool. The final colony grammar requires distinct terminals.</li><li>For an unreachable target return a distinguishable error and no path. Ordinary cycles and disconnected extra rooms must not cause nontermination.</li><li>Path length in edges equals len(path)-1; every consecutive pair must be adjacent. Bound reconstruction to V parent steps to detect a broken invariant.</li><li>The CLI's JSON has Names, Links, Start and End. Print <code>distance=D path=name,name,...</code>. Coordinates do not affect route choice.</li><li>Include queue tests and a justification of shortestness using distance layers. This tool does not allocate multiple ants or promise minimum completion turns for them.</li></ol>",
+  "Components": [
+    {
+      "Slug": "queue",
+      "Title": "Build the discovery queue",
+      "Goal": "Create a traversal worklist with explicit visited semantics.",
+      "Before": [
+        "Why must a vertex be marked before enqueueing?",
+        "What does the queue contain after a vertex is expanded?"
+      ],
+      "Steps": [
+        "Initialize distance/seen and parent arrays for all vertices.",
+        "Use a slice plus head index instead of repeated front deletion.",
+        "Record queue operations in a small hand trace before implementing neighbor traversal."
+      ],
+      "Hint": "In a diamond s-a-t and s-b-t, t must enter the queue once even though two edges discover it.",
+      "Trace": "For neighbors a then b, trace queue [s], then [s,a,b], then discovery of t from a. b must not enqueue t again.",
+      "Gate": "A cycle and a diamond each enqueue no more than V vertices."
+    },
+    {
+      "Slug": "search",
+      "Title": "Search distance layers",
+      "Goal": "Find reachability and the shortest edge count.",
+      "Before": [
+        "What does distance[v] certify when v is dequeued?",
+        "When can the algorithm stop while preserving the route result?"
+      ],
+      "Steps": [
+        "Expand only valid undiscovered neighbors.",
+        "Store predecessor and distance together at first discovery.",
+        "Return a specific unreachable result if the worklist empties without the destination."
+      ],
+      "Hint": "For one-edge tunnels there is no weight relaxation loop. Replacing the queue with a stack invalidates the same shortestness argument.",
+      "Trace": "Compare s-a-t with s-b-c-t. The two-edge route must win even if a's coordinates are far away.",
+      "Gate": "Tests cover a direct edge, unequal routes, equal routes, cycles and an unreachable target."
+    },
+    {
+      "Slug": "parents",
+      "Title": "Reconstruct and certify a route",
+      "Goal": "Convert predecessor metadata into a trustworthy artifact.",
+      "Before": [
+        "Which endpoint starts reconstruction?",
+        "How will you distinguish no route from a zero-length route?"
+      ],
+      "Steps": [
+        "Walk parents from end toward start with a V-step guard.",
+        "Reverse the resulting vertex list.",
+        "Independently check endpoints, adjacency and edge count before formatting names."
+      ],
+      "Hint": "Keep route validation separate from discovery. A parent assignment bug should be visible even if a distance happens to be correct.",
+      "Trace": "With parents t←a←s, reconstruction first yields [t,a,s], but the printed path is s,a,t and distance is 2.",
+      "Gate": "A deliberately broken parent cycle is rejected by the reconstruction guard; a valid route passes an independent edge check."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo run . testdata/routes.json",
+  "Verification": "<p>The fixture contains the two-edge route s-a-t and the three-edge route s-b-c-t. Expect <code>distance=2 path=s,a,t</code>.</p><ul><li>Direct s-t: distance 1 and path [s,t].</li><li>Diamond with equal routes: stable choice through lexically earlier neighbor a.</li><li>Disconnected t: unreachable error and no route.</li><li>Triangle on the way to t: terminate with the shortest route, never loop.</li><li>General-purpose start==end: distance 0 and one endpoint.</li><li>For every returned route, independently check all edges and len(path)-1.</li></ul><h2>Exit gate</h2><p>Explain shortestness by BFS layers, show at most one discovery per vertex and state why this is only a lower bound for multiple ants.</p>",
+  "Engineering": [
+    "What exactly makes BFS shortest: the visited set, the queue or both?",
+    "Which changes would be required if tunnels had unequal travel times?",
+    "Why is a reconstructed path a useful certificate even when distance is the requested output?",
+    "Can early stopping on discovery and on dequeue produce the same distance with different metadata completeness?",
+    "Why is a map-backed neighbor order a reproducibility risk?",
+    "How would a malformed parent chain reveal a search invariant failure?",
+    "What does a single-ant shortest path fail to describe about multi-ant traffic?"
+  ],
+  "Practical": [
+    "Add a direct-edge fixture.",
+    "Swap coordinate values in your colony parser data and confirm BFS is unchanged.",
+    "Add a cycle around a dead-end branch.",
+    "Count queue insertions on a diamond.",
+    "Check every returned edge using a separate helper.",
+    "Change equal-route input order and confirm stable output."
+  ],
+  "Extras": [
+    "Return all distances from one source. Use them for later pruning without enumerating paths.",
+    "Count shortest routes on a small graph. Decide how to handle integer overflow.",
+    "Add a distance-to-end precomputation for time-layer pruning in P09.",
+    "Benchmark line, star and grid graphs with the same vertex count.",
+    "Compare bidirectional BFS on large sparse graphs. Preserve the route and tie-breaking contract before considering it an optimization."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\";\"io\")\nvar ErrTODO=errors.New(\"TODO: implement BFS\")\nvar ErrUnreachable=errors.New(\"unreachable\")\ntype Graph struct { Names []string; Adj [][]int }\ntype Route struct { Vertices []int; Distance int }\nfunc Shortest(g Graph,start,end int)(Route,error){ // TODO: queue, discovery, parents and guarded reconstruction\n return Route{},ErrTODO\n}\nfunc Run(args []string,input io.Reader,output io.Writer)error{ // TODO: reuse graph construction and print route\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport \"testing\"\nfunc TestShortestAcceptance(t *testing.T){\n t.Skip(\"TODO: remove when implementing BFS; add cycle, queue and unreachable cases\")\n g:=Graph{Names:[]string{\"s\",\"a\",\"t\"},Adj:[][]int{{1},{0,2},{1}}}\n r,e:=Shortest(g,0,2)\n if e!=nil||r.Distance!=2||len(r.Vertices)!=3{t.Fatalf(\"%+v %v\",r,e)}\n}\n",
+    "testdata/routes.json": "{\"Names\":[\"s\",\"a\",\"b\",\"c\",\"t\"],\"Links\":[{\"A\":\"s\",\"B\":\"a\"},{\"A\":\"a\",\"B\":\"t\"},{\"A\":\"s\",\"B\":\"b\"},{\"A\":\"b\",\"B\":\"c\"},{\"A\":\"c\",\"B\":\"t\"}],\"Start\":\"s\",\"End\":\"t\"}\n"
+  }
+}

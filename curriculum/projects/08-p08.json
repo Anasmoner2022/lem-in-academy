@@ -1,0 +1,129 @@
+{
+  "ID": "P08",
+  "Slug": "p08-residual-flow-workbench",
+  "Title": "Residual Flow Workbench",
+  "Kind": "preparation",
+  "Stage": "03 · Exact optimization",
+  "Hours": 14,
+  "Depends": [
+    "P07"
+  ],
+  "Summary": "Build an integral max-flow engine with reverse arcs, augmenting BFS, flow conservation and cut witnesses.",
+  "Overview": "<p>Build a directed network workbench that sends integral flow from a source to a sink. It reports the achieved value, per-original-edge flow and a reachable-side cut after exhaustion. Reverse arcs let the algorithm cancel part of an earlier decision, addressing the greedy failure exposed in P07.</p><p>Reuse the BFS worklist pattern from P05, but search only arcs with positive residual capacity. No rooms or time layers are hidden inside this engine. Keeping the engine generic lets P09 test the modelling reduction separately.</p>",
+  "Reading": [
+    {
+      "Title": "Princeton Algorithms: Maximum Flow",
+      "URL": "https://algs4.cs.princeton.edu/64maxflow/",
+      "Section": "Maximum flow; minimum s-t cut; augmenting paths",
+      "Why": "Learn capacity, conservation and the optimality certificate.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Princeton maxflow study guide",
+      "URL": "https://www.cs.princeton.edu/courses/archive/fall15/cos226/lectures/study/64MaxFlow.html",
+      "Section": "Residual network; Ford-Fulkerson details",
+      "Why": "Understand reverse capacity and BFS over residual arcs.",
+      "Mandatory": true
+    },
+    {
+      "Title": "MIT 6.854 maxflow notes",
+      "URL": "https://courses.csail.mit.edu/6.854/19/Scribe/s6-maxflow/s6-maxflow.html",
+      "Section": "Ford-Fulkerson Algorithm; integral capacities and O(m|f|) bound",
+      "Why": "Justify termination and a bound when the target flow is capped.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Go testing",
+      "URL": "https://pkg.go.dev/testing",
+      "Section": "Subtests; Benchmarks",
+      "Why": "Separate arc-pair invariants from whole-network behavior.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>For an original arc u→v with capacity c and flow f, forward residual capacity is c-f and reverse residual capacity is f. Traversing a reverse arc cancels earlier flow; it does not represent an ant walking backward in the final colony.</p><p>Store a reverse index on every residual arc. Adding an original arc creates a forward residual arc and a paired zero-capacity reverse arc. If both u→v and v→u exist as original arcs, each gets its own pair; do not accidentally merge independent original capacities.</p><p>An augmenting path carries its smallest residual capacity, the bottleneck. Update both directions of every pair. At every nonterminal vertex, incoming original flow equals outgoing original flow. Integral starting capacities and integral bottlenecks preserve integral flows.</p><p>When no residual path reaches the sink, the source-reachable vertices form a cut whose original outgoing capacity equals the achieved flow. That certifies maximum flow. A target-capped run that stops early proves target feasibility but does not automatically yield a minimum cut.</p>",
+  "Spec": "<ol><li>Implement a mutable Network with stable original-edge handles, adjacency lists and paired reverse indices. Reject negative capacities, invalid endpoints and source==sink. Zero capacity is allowed.</li><li>Use BFS to find augmenting paths through positive residual arcs. Store parent arc identities, not merely parent vertices, because multiple arcs can share endpoints.</li><li>Find a bottleneck, update forward and reverse residual capacities and repeat until no path or a supplied nonnegative target value is reached. Never augment beyond the remaining target.</li><li>Return the achieved flow and permit extraction of original-edge flows. Repeated calls on the same residual state must have an explicitly documented meaning; this academy API resets from original capacities for each Solve call.</li><li>Verify bounds 0≤f≤c and conservation. On exhausted runs, report a source-reachable cut and compare its capacity with value. Do not claim cut equality on an early target stop.</li><li>Use integer capacities and checked additions. This engine uses O(V+E) storage. BFS augmentation has general O(VE²) worst-case cost; with target n and integral capacities, no more than n successful augmentations are needed, giving O(n(V+E)) for the capped task.</li><li>The CLI JSON provides V, Arcs, Source, Sink and Target. The fixture's target is 2 and it prints <code>flow=2</code>. No room splitting or timetable logic yet.</li></ol>",
+  "Components": [
+    {
+      "Slug": "arc-pairs",
+      "Title": "Build residual arc pairs",
+      "Goal": "Make cancellation explicit and testable.",
+      "Before": [
+        "What does a reverse arc mean before any flow is sent?",
+        "How will original antiparallel arcs remain distinct?"
+      ],
+      "Steps": [
+        "Allocate stable arc handles and reverse indices.",
+        "Retain original capacities independently from current residual capacity.",
+        "Test pair symmetry and update a single arc manually in a small unit test."
+      ],
+      "Hint": "For a capacity-one arc, sending one unit changes residuals from (1,0) to (0,1). Sending it back must restore (1,0), not create extra capacity.",
+      "Trace": "Add original a→b and original b→a. Draw four residual arc records and their pair links.",
+      "Gate": "Reverse indices point back to their originating arc, including with antiparallel original arcs."
+    },
+    {
+      "Slug": "augmentation",
+      "Title": "Find and apply augmenting paths",
+      "Goal": "Use BFS without freezing previous routing choices.",
+      "Before": [
+        "Why do parent records need an arc index?",
+        "What bounds the amount added on one path?"
+      ],
+      "Steps": [
+        "Run residual BFS and retain an arc chain.",
+        "Calculate the bottleneck including the remaining target.",
+        "Apply paired updates and check capacity/conservation invariants after each augmentation during development."
+      ],
+      "Hint": "Use the directed network s→a, s→b, a→b, a→t, b→t with unit capacities. Manually seed flow on s-a-b-t; then a residual path s-b-a-t must cancel a→b and increase total flow to two.",
+      "Trace": "After the reroute, original flow on a→b is zero, while s→a→t and s→b→t each carry one. The reverse arc was bookkeeping, not a final extra route.",
+      "Gate": "A forced reroute test fails with reverse arcs disabled and passes with correct paired updates."
+    },
+    {
+      "Slug": "certificate",
+      "Title": "Certify maximum flow and limits",
+      "Goal": "Distinguish target feasibility from full exhaustion.",
+      "Before": [
+        "When is a reachable-side cut a minimum-cut certificate?",
+        "Why do integer capacities guarantee progress?"
+      ],
+      "Steps": [
+        "Compute reachable residual vertices after an exhausted search.",
+        "Sum original outgoing cut capacities and compare to flow value.",
+        "Add overflow checks, target-zero handling and a fresh-state Solve contract."
+      ],
+      "Hint": "An early stop at target one on a network supporting two is a successful feasibility result, but its residual reachable set need not be a separating minimum cut.",
+      "Trace": "For s→a capacity 2 and a→t capacity 1, max flow and bottleneck cut capacity are one. For target zero, no mutation should be needed.",
+      "Gate": "Independent conservation and cut checks pass on several networks, including disconnected and zero-capacity cases."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo run . testdata/network.json",
+  "Verification": "<ul><li>Unit diamond s-a-t and s-b-t: target 2 achieves 2.</li><li>Capacity 2 into a followed by capacity 1 out: max flow 1 and exhausted cut 1.</li><li>No source-sink path: flow 0 without error; this is a feasible network with no throughput.</li><li>Forced initial s-a-b-t augmentation: residual cancellation permits value 2.</li><li>Antiparallel original arcs preserve separate identities and nonnegative residuals.</li><li>Target 1 on a capacity-2 network stops at 1 and makes no unjustified maximum-cut claim.</li><li>Negative capacity, invalid endpoints and integer overflow are rejected.</li></ul><h2>Exit gate</h2><p>Demonstrate capacity bounds, conservation, integrality and a cut witness after exhaustion. Explain the target-capped complexity separately from the general Edmonds-Karp bound.</p>",
+  "Engineering": [
+    "Why does an augmenting path sometimes need a reverse arc even though the final solution respects original directions?",
+    "How could conflating antiparallel original arcs corrupt a flow certificate?",
+    "What is certified by reaching target n, and what remains uncertified?",
+    "Why do integer capacities matter to termination and later ant identity extraction?",
+    "Which invariant would detect a one-sided residual update earliest?",
+    "How can a cut provide evidence independent from the sequence of augmentations?",
+    "What performance evidence would justify replacing this engine with a more complex algorithm?"
+  ],
+  "Practical": [
+    "Draw residual pairs for two antiparallel arcs.",
+    "Disable reverse capacity temporarily and show a reroute test failure.",
+    "Compute conservation from original flows at every internal vertex.",
+    "Verify a one-edge cut by hand.",
+    "Test target zero and target larger than maximum flow.",
+    "Run the same Solve call twice under the fresh-state contract."
+  ],
+  "Extras": [
+    "Export residual capacities as text for step-by-step review. Keep original and residual edges distinguishable.",
+    "Add a deterministic augmentation trace useful for diagnosing reverse-index mistakes.",
+    "Benchmark a larger family of sparse networks at several target values.",
+    "Add a blocking-flow implementation behind the same API only after all certificates match.",
+    "Compare two independently written cut calculators on random tiny directed networks. Preserve seeds and minimal failing cases."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\";\"io\")\nvar ErrTODO=errors.New(\"TODO: implement residual flow\")\ntype Arc struct { To,Rev,Residual,Original int }\ntype EdgeSpec struct { From,To,Capacity int }\ntype Result struct { Value int; Flow []int; Reachable []bool; Exhausted bool }\nfunc Solve(vertices int,edges []EdgeSpec,source,sink,target int)(Result,error){ // TODO: pair arcs, residual BFS, augmentation and certificates\n return Result{},ErrTODO\n}\nfunc Run(args []string,input io.Reader,output io.Writer)error{ // TODO: decode directed network and print flow\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport \"testing\"\nfunc TestFlowAcceptance(t *testing.T){\n t.Skip(\"TODO: remove when implementing flow; add reroute and conservation cases\")\n r,e:=Solve(4,[]EdgeSpec{{0,1,1},{0,2,1},{1,3,1},{2,3,1}},0,3,2)\n if e!=nil||r.Value!=2{t.Fatalf(\"%+v %v\",r,e)}\n}\n",
+    "testdata/network.json": "{\"V\":4,\"Arcs\":[{\"From\":0,\"To\":1,\"Capacity\":1},{\"From\":0,\"To\":2,\"Capacity\":1},{\"From\":1,\"To\":3,\"Capacity\":1},{\"From\":2,\"To\":3,\"Capacity\":1}],\"Source\":0,\"Sink\":3,\"Target\":2}\n"
+  }
+}

@@ -1,0 +1,14 @@
+# P12 — Deterministic and Bounded Release Lab
+
+Unfinished student scaffold. Core functions return ErrTODO. Compilation is not solution verification.
+
+Read the guide's specification before changing contracts. Implement core TODOs, remove the explicit t.Skip from acceptance tests, and add adversarial cases.
+
+Go 1.22 or newer; standard library only. Run go test ./... and go vet ./... inside this directory.
+
+go test ./...
+go vet ./...
+go list -deps ./...
+go run . testdata/budget.json
+
+Guide: ../../public/guides/p12-deterministic-release/index.html

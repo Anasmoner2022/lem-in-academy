@@ -1,0 +1,384 @@
+[
+  {
+    "ID": "U01",
+    "Origin": "U",
+    "Rule": "Go CLI named lem-in reads one file argument",
+    "Prep": [
+      "P01",
+      "P02",
+      "L01"
+    ],
+    "Evidence": "Build executable; test zero/one/two arguments and a missing file."
+  },
+  {
+    "ID": "U02",
+    "Origin": "U",
+    "Rule": "Only standard Go packages in assessed implementations",
+    "Prep": [
+      "P01",
+      "P12",
+      "L01"
+    ],
+    "Evidence": "Inspect go.mod and imports; go list -deps shows only own module and standard library."
+  },
+  {
+    "ID": "U03",
+    "Origin": "U",
+    "Rule": "Echo accepted input before movements",
+    "Prep": [
+      "P02",
+      "P11",
+      "L01"
+    ],
+    "Evidence": "Compare normalized original bytes to transcript prefix, including comments and commands."
+  },
+  {
+    "ID": "U04",
+    "Origin": "U",
+    "Rule": "Movement tokens L<number>-<room>, one line per turn",
+    "Prep": [
+      "P06",
+      "P11",
+      "L01"
+    ],
+    "Evidence": "Black-box transcript parser; reject malformed tokens and extra diagnostics."
+  },
+  {
+    "ID": "U05",
+    "Origin": "U",
+    "Rule": "All numbered ants start at start and finish at end",
+    "Prep": [
+      "P06",
+      "P10",
+      "L01"
+    ],
+    "Evidence": "Independent complete replay with exactly n stable ant identities."
+  },
+  {
+    "ID": "U06",
+    "Origin": "U",
+    "Rule": "Finish in the fewest turns",
+    "Prep": [
+      "P07",
+      "P08",
+      "P09",
+      "P10",
+      "P11"
+    ],
+    "Evidence": "Correspondence proof, monotone deadline search, T-1 cut/BFS bound and independent tiny oracle."
+  },
+  {
+    "ID": "U07",
+    "Origin": "U",
+    "Rule": "Ordinary rooms hold at most one ant; terminals unlimited",
+    "Prep": [
+      "P06",
+      "P09"
+    ],
+    "Evidence": "Collision mutations and room-split model tests; concurrent arrivals at end allowed."
+  },
+  {
+    "ID": "U08",
+    "Origin": "U",
+    "Rule": "Each undirected tunnel used at most once per turn",
+    "Prep": [
+      "P06",
+      "P09"
+    ],
+    "Evidence": "Opposing-swap and direct-edge multi-ant tests; shared gadget bottleneck."
+  },
+  {
+    "ID": "U09",
+    "Origin": "U",
+    "Rule": "Each ant moves at most once and only to an adjacent room",
+    "Prep": [
+      "P06",
+      "P11"
+    ],
+    "Evidence": "Duplicate-ID and nonedge movement mutations."
+  },
+  {
+    "ID": "U10",
+    "Origin": "U",
+    "Rule": "Receiving room must be available; pipelines supported",
+    "Prep": [
+      "P06",
+      "P09",
+      "P10"
+    ],
+    "Evidence": "Vacated-room pipeline accepted, stationary-room collision rejected."
+  },
+  {
+    "ID": "U11",
+    "Origin": "U",
+    "Rule": "Rooms use name x y; names need not be numeric or ordered",
+    "Prep": [
+      "P03",
+      "P04"
+    ],
+    "Evidence": "Unordered numeric/nonnumeric names; canonical identity independent from coordinates."
+  },
+  {
+    "ID": "U12",
+    "Origin": "U",
+    "Rule": "Names cannot begin with L or # and contain no spaces",
+    "Prep": [
+      "P03"
+    ],
+    "Evidence": "Invalid-prefix/whitespace tests and valid UTF-8/hyphen names."
+  },
+  {
+    "ID": "U13",
+    "Origin": "U",
+    "Rule": "Coordinates are integers and serve the bonus",
+    "Prep": [
+      "P03",
+      "P14"
+    ],
+    "Evidence": "Signed/overflow tests; path costs ignore coordinates; safe render transform."
+  },
+  {
+    "ID": "U14",
+    "Origin": "U",
+    "Rule": "Tunnels join exactly two known rooms",
+    "Prep": [
+      "P03",
+      "P04"
+    ],
+    "Evidence": "Unknown endpoint, malformed and ambiguous endpoint cases."
+  },
+  {
+    "ID": "U15",
+    "Origin": "U",
+    "Rule": "No duplicate rooms or duplicate undirected tunnels",
+    "Prep": [
+      "P03"
+    ],
+    "Evidence": "Duplicate name and reversed edge fixtures."
+  },
+  {
+    "ID": "U16",
+    "Origin": "U",
+    "Rule": "Invalid counts, terminals and malformed input produce errors",
+    "Prep": [
+      "P02",
+      "P03",
+      "P12"
+    ],
+    "Evidence": "Grammar mutation table with deliberate stream/exit results."
+  },
+  {
+    "ID": "U17",
+    "Origin": "U",
+    "Rule": "Self-links are invalid; ordinary cycles terminate safely",
+    "Prep": [
+      "P03",
+      "P04",
+      "P05"
+    ],
+    "Evidence": "Self-link rejection and cyclic valid graph acceptance."
+  },
+  {
+    "ID": "U18",
+    "Origin": "U",
+    "Rule": "No route is an error; disconnected extras are handled",
+    "Prep": [
+      "P04",
+      "P05",
+      "P10"
+    ],
+    "Evidence": "Unreachable end rejected; isolated irrelevant component leaves optimum unchanged."
+  },
+  {
+    "ID": "U19",
+    "Origin": "U",
+    "Rule": "Ignore unknown commands",
+    "Prep": [
+      "P03",
+      "P11"
+    ],
+    "Evidence": "Unknown commands before count, during pending marker and after links; echo preserved."
+  },
+  {
+    "ID": "U20",
+    "Origin": "U",
+    "Rule": "ERROR: invalid data format with optional suffix; no unexpected crash",
+    "Prep": [
+      "P02",
+      "P03",
+      "P11",
+      "P12",
+      "L01"
+    ],
+    "Evidence": "Fuzz/adversarial inputs, exact prefix and no accepted partial colony."
+  },
+  {
+    "ID": "U21",
+    "Origin": "U",
+    "Rule": "Good practices and meaningful tests",
+    "Prep": [
+      "P01",
+      "P11",
+      "P12",
+      "L01"
+    ],
+    "Evidence": "gofmt, vet, modular errors, enabled behavior tests, mutation and fuzz evidence."
+  },
+  {
+    "ID": "U22",
+    "Origin": "U/audit",
+    "Rule": "Published example turn ceilings and timing cases",
+    "Prep": [
+      "P10",
+      "P11",
+      "P12",
+      "L01"
+    ],
+    "Evidence": "Examples 00..05 ceilings 6,8,11,6,6,8; 06/07 measured below 90/150 seconds."
+  },
+  {
+    "ID": "A01",
+    "Origin": "A",
+    "Rule": "Explicit grammar phases and terminal binding",
+    "Prep": [
+      "P03"
+    ],
+    "Evidence": "Transition-table coverage and pending-marker tests."
+  },
+  {
+    "ID": "A02",
+    "Origin": "A",
+    "Rule": "Hyphenated endpoint names use unique known-name split",
+    "Prep": [
+      "P03",
+      "P11"
+    ],
+    "Evidence": "Unique split accepted; ambiguous four-name fixture rejected."
+  },
+  {
+    "ID": "A03",
+    "Origin": "A",
+    "Rule": "LF/CRLF normalization and exact echo separator",
+    "Prep": [
+      "P02",
+      "P11"
+    ],
+    "Evidence": "Byte comparison with missing-final-LF, comments and unknown commands."
+  },
+  {
+    "ID": "A04",
+    "Origin": "A",
+    "Rule": "Batch departures before arrivals; token order does not define legality",
+    "Prep": [
+      "P06",
+      "P09"
+    ],
+    "Evidence": "Pipeline token permutation and documented rotation semantics."
+  },
+  {
+    "ID": "A05",
+    "Origin": "A",
+    "Rule": "Deterministic graph, trajectory IDs and ID-sorted tokens",
+    "Prep": [
+      "P04",
+      "P10",
+      "P12"
+    ],
+    "Evidence": "Canonical name/edge ordering and 20 byte-identical runs."
+  },
+  {
+    "ID": "A06",
+    "Origin": "A",
+    "Rule": "Checked size/work limits; resource errors do not mean infeasible",
+    "Prep": [
+      "P02",
+      "P09",
+      "P12"
+    ],
+    "Evidence": "Boundary arithmetic, low-budget refusal and no greedy fallback."
+  },
+  {
+    "ID": "A07",
+    "Origin": "A",
+    "Rule": "Independent movement validator and optimality evidence",
+    "Prep": [
+      "P06",
+      "P11"
+    ],
+    "Evidence": "3294 tiny graph/ant comparisons plus targeted larger greedy trap and invariant mutations."
+  },
+  {
+    "ID": "A08",
+    "Origin": "A",
+    "Rule": "Typed process outcomes: streams and exit statuses",
+    "Prep": [
+      "P12",
+      "L01"
+    ],
+    "Evidence": "Success=0; invalid/no-route stdout=1; usage/I/O stderr=2; resource stderr=3."
+  },
+  {
+    "ID": "A09",
+    "Origin": "A",
+    "Rule": "Ant allocation and concurrent pipeline scheduling",
+    "Prep": [
+      "P07",
+      "P10"
+    ],
+    "Evidence": "Fixed-route capacity formula, extraction, waits and legal completion."
+  },
+  {
+    "ID": "A10",
+    "Origin": "A",
+    "Rule": "Complexity and bounded handling documented honestly",
+    "Prep": [
+      "P08",
+      "P09",
+      "P10",
+      "P12"
+    ],
+    "Evidence": "Model-size formulas, capped flow bound, output cost and measured performance."
+  },
+  {
+    "ID": "B01",
+    "Origin": "B",
+    "Rule": "Optional visualizer consumes solver stdout",
+    "Prep": [
+      "P13",
+      "V01"
+    ],
+    "Evidence": "Go-native producer/consumer test; invalid/truncated stream rejected."
+  },
+  {
+    "ID": "B02",
+    "Origin": "B/A",
+    "Rule": "Go-only standard-library animated GIF with coordinates",
+    "Prep": [
+      "P14",
+      "V01"
+    ],
+    "Evidence": "GIF decode-back, viewed motion, no graphics/font dependency."
+  },
+  {
+    "ID": "B03",
+    "Origin": "B/A",
+    "Rule": "Safe coordinate mapping, immutable frames and accessible text",
+    "Prep": [
+      "P13",
+      "P14",
+      "V01"
+    ],
+    "Evidence": "Negative/coincident/extreme coordinate tests, alias checks and text legend/replay."
+  },
+  {
+    "ID": "B04",
+    "Origin": "B/A",
+    "Rule": "Bounded rendering and deliberate output-file failures",
+    "Prep": [
+      "P12",
+      "P14",
+      "V01"
+    ],
+    "Evidence": "Frame/pixel preflight, destination collision and cleanup tests."
+  }
+]

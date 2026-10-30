@@ -1,0 +1,23 @@
+{
+  "baseline": "Every labelled simple undirected graph V=2..5, terminals 0 and V-1, ants 1..3",
+  "baseline_cases": 3294,
+  "budget_skips": 0,
+  "date": "2026-10-28",
+  "elapsed_seconds": 0.1201358,
+  "greedy_trap": {
+    "ants": 4,
+    "model_turns": 5,
+    "oracle_turns": 5,
+    "vertices": 8
+  },
+  "limits": "Tiny mathematical evidence only; no file parser, transcript formatter, complete solver or audit timing claim",
+  "methods": [
+    "Occupancy-multiset BFS enumerating all legal simultaneous batches",
+    "Time-expanded split-room network with shared undirected tunnel gadgets and integer residual maxflow"
+  ],
+  "mismatches": [],
+  "oracle_expanded_states": 25507,
+  "purpose": "Independent curriculum-model experiment, not validation of unfinished student implementations",
+  "scratch_source_sha256": "1a5e8465b4dbc76c7780bbb74a05794e5081e6dd4f216bd53146776f079e6722",
+  "targeted_cases": 1
+}

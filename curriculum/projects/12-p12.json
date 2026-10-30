@@ -1,0 +1,136 @@
+{
+  "ID": "P12",
+  "Slug": "p12-deterministic-release",
+  "Title": "Deterministic and Bounded Release Lab",
+  "Kind": "preparation",
+  "Stage": "04 · Verification and release",
+  "Hours": 10,
+  "Depends": [
+    "P11"
+  ],
+  "Summary": "Build preflight budgets, deterministic output and a reproducible Go-only release checklist that preserves exactness under failure.",
+  "Overview": "<p>Build the operational boundary around the planner: checked model-size estimates, a budget policy, stable transcript formatting and repeatable release evidence. The artifact is a small release harness plus tests proving that limits and output handling do not silently change the optimization problem.</p><p>Reuse the algorithms from P10 and the checker/oracle from P11. Your new work handles overflow, process streams, cancellation and repeatability. An honest refusal is preferable to labelling an unproved heuristic answer as a minimum-turn solution.</p>",
+  "Reading": [
+    {
+      "Title": "Go command documentation",
+      "URL": "https://pkg.go.dev/cmd/go",
+      "Section": "Build; Test; Vet; List",
+      "Why": "Make standard Go checks reproducible.",
+      "Mandatory": true
+    },
+    {
+      "Title": "context package",
+      "URL": "https://pkg.go.dev/context",
+      "Section": "WithTimeout; Context.Err",
+      "Why": "Propagate a work deadline through expensive planning loops.",
+      "Mandatory": true
+    },
+    {
+      "Title": "math package constants",
+      "URL": "https://pkg.go.dev/math",
+      "Section": "Integer limit constants",
+      "Why": "Reason about bounded arithmetic rather than trusting overflow behavior.",
+      "Mandatory": false
+    },
+    {
+      "Title": "Official good practices",
+      "URL": "https://github.com/01-edu/public/blob/master/subjects/good-practices/README.md",
+      "Section": "Code; Go; Time Limitation",
+      "Why": "Review structure, formatting and bounded execution expectations.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Official lem-in audit",
+      "URL": "https://github.com/01-edu/public/blob/master/subjects/lem-in/audit/README.md",
+      "Section": "example06 and example07 timing checks",
+      "Why": "Treat the published timing examples as separate performance gates.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>Signed integer overflow in Go does not panic automatically. Check multiplication and addition before creating time-layer counts, capacities, buffer lengths or slices. Perform calculations in a fixed-width type and verify conversion to int on the required 64-bit target.</p><p>For T layers of transitions, estimate <code>2(T+1)V+2TE</code> vertices and at most <code>(2T+1)V+5TE</code> original arcs; residual arcs double the latter. Limits must be checked before allocation. Also bound accumulated output and work across all binary-search probes.</p><p>Keep three outcomes distinct: invalid input, a mathematically infeasible deadline, and inability to complete a computation within a resource budget. A timeout cannot be converted into false in binary search. A writer failure may happen after bytes have reached stdout; report it and exit without pretending the transcript is complete.</p><p>Logical turn concurrency does not require goroutines. A deterministic single-threaded planner is easier to bound and reproduce.</p>",
+  "Spec": "<ol><li>Implement checked network-size estimation from V,E,T. Invalid negative parameters and arithmetic overflow are errors. Return int64 counts before any potentially unsafe conversion.</li><li>Academy default limits: 1 MiB input, 4096-byte physical lines, 10000 ants, 10000 rooms, 50000 tunnels, 200000 expanded vertices, 1000000 stored residual arcs, 4000000 stored ant-time position cells, 16 MiB formatted output and a 240-second planning deadline. These are academy resource policies, not upstream graph-size guarantees.</li><li>Check budgets before allocation and periodically during BFS augmentation, deadline probes and extraction. On exhaustion return a distinct error and no claimed optimal plan. Never substitute a greedy result. Allow a documented instructor-configured budget without weakening exactness.</li><li>Format a complete accepted transcript only after parsing, planning and independent movement validation. Keep diagnostics off successful stdout. Canonical token order is ascending ant ID, single ASCII spaces, LF lines and no trailing spaces.</li><li>For final L01: success exit 0; malformed/no-route input prints one <code>ERROR: invalid data format</code> line with optional suffix to stdout, exit 1; usage/I/O errors go to stderr, exit 2; resource exhaustion goes to stderr as <code>ERROR: resource limit exceeded</code>, exit 3. Writer failure is an I/O error; never print a second error into an already partial success transcript.</li><li>The prep CLI prints <code>vertices=36 original_arcs=51 residual_arcs=102</code> for V=3,E=2,T=3. Keep the final process adapter as a separate future component.</li><li>Release evidence includes gofmt, tests, vet, a standard-library dependency inspection, 20 repeated-output comparisons, boundary resource tests and recorded performance hardware/toolchain. Upstream timing gates: example06 with 100 ants below 90 seconds, example07 with 1000 below 150 seconds; do not claim those measurements before running a finished solver.</li></ol>",
+  "Components": [
+    {
+      "Slug": "checked-budgets",
+      "Title": "Preflight bounded work",
+      "Goal": "Reject unsafe sizes before allocation without misclassifying feasibility.",
+      "Before": [
+        "Which arithmetic expression can overflow first?",
+        "Does a model-size refusal mean the colony has no route?"
+      ],
+      "Steps": [
+        "Implement checked count arithmetic and compare each count with policy.",
+        "Bound trajectory cells n(T+1), output token estimates and actual formatting growth before allocating extraction history.",
+        "Add cancellation checks at bounded intervals inside all expensive loops."
+      ],
+      "Hint": "Doubling original arcs for residual pairs matters. A policy based only on forward arcs underestimates the actual graph storage.",
+      "Trace": "For V=3,E=2,T=3, calculate 24+12=36 vertices, original arcs 21+30=51 and residual arcs 102. Derive each term from room layers and tunnel gadgets.",
+      "Gate": "Arithmetic boundary tests and a forced low-budget run return resource errors before allocation."
+    },
+    {
+      "Slug": "format-boundary",
+      "Title": "Make process streams deterministic",
+      "Goal": "Keep success data, invalid-data output and operational failures unambiguous.",
+      "Before": [
+        "When is input accepted enough to echo?",
+        "What can be guaranteed after an output Writer fails midway?"
+      ],
+      "Steps": [
+        "Build and validate the full schedule before writing a transcript.",
+        "Apply exact newline, separator and token-spacing rules.",
+        "Map typed errors to the declared stream and exit status in one process boundary."
+      ],
+      "Hint": "Do not print the input as soon as parsing succeeds. A later no-route or resource failure would leave an apparently accepted but incomplete transcript.",
+      "Trace": "A valid colony with a forced planner budget error must produce no stdout. A malformed colony gets exactly one invalid-data line and no echo.",
+      "Gate": "Tests assert stdout, stderr and exit code independently for all outcome classes."
+    },
+    {
+      "Slug": "release-evidence",
+      "Title": "Reproduce a release review",
+      "Goal": "Make correctness and performance claims reviewable.",
+      "Before": [
+        "What is measured by scaffold compilation versus solution acceptance tests?",
+        "Which timing gate is machine-dependent?"
+      ],
+      "Steps": [
+        "Run standard Go build/test/vet checks and inspect imports.",
+        "Compare 20 outputs from the same fixed input byte-for-byte.",
+        "Run the P11 campaign and published audit examples on the completed implementation, logging versions and hardware."
+      ],
+      "Hint": "A test suite with skipped TODO acceptance cases proves the starter is well formed, not that the student's program works. Count skipped tests in your report.",
+      "Trace": "A report must say pending if example07 has not been executed. An inferred complexity bound is not a measured 150-second result.",
+      "Gate": "Every claim in the release report points to a command, an input, an actual result and any limits."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo list -deps ./...\ngo run . testdata/budget.json",
+  "Verification": "<p>For V=3,E=2,T=3, the upper counts are <strong>vertices=36 original_arcs=51 residual_arcs=102</strong>. Derive each count independently from the model.</p><ul><li>V=2,E=1,T=1: 10 vertices, 11 original arcs, 22 residual arcs as an upper estimate; omitting end connector entries may reduce actual arcs.</li><li>Negative parameters and overflowing products: error before allocation.</li><li>Configured vertex budget 35 for the 36-vertex example: resource error, never infeasible.</li><li>Writer failure after a prefix: I/O exit and no appended invalid-data line.</li><li>Twenty identical runs produce exact byte equality.</li><li>Audit timing results remain pending until a completed solver is benchmarked on recorded hardware.</li></ul><h2>Exit gate</h2><p>Explain every configured limit, its effect on valid but oversized input and why it cannot weaken the exactness claim for successful runs.</p>",
+  "Engineering": [
+    "Why should resource policies be published separately from upstream validity rules?",
+    "Which bounds concern memory and which concern elapsed or total work?",
+    "How can a failed probe corrupt an otherwise correct binary search if errors are treated as false?",
+    "What does deterministic output require beyond sorting the final tokens?",
+    "Why does buffering output reduce some failure modes without guaranteeing an atomic OS write?",
+    "How would you report a performance failure without calling the input malformed?",
+    "What evidence is required before claiming this academy's chosen exact method meets the upstream timing examples?"
+  ],
+  "Practical": [
+    "Recalculate the 36-vertex example without using the helper.",
+    "Force a residual-arc budget breach.",
+    "Force a cancellation during augmentation.",
+    "Capture stdout/stderr/exit status for all error classes.",
+    "Compare 20 output hashes.",
+    "List direct imports and explain why no third-party module is needed."
+  ],
+  "Extras": [
+    "Add a structured stderr diagnostic mode for instructors. Keep success stdout unchanged.",
+    "Add a portable Go release command that writes a manifest of toolchain and fixture hashes.",
+    "Benchmark repeated allocation and reuse strategies under the same exact planner contract.",
+    "Add work-unit counters alongside wall-clock time for more reproducible diagnostics.",
+    "Design a policy negotiation document for larger colonies, including memory estimates and explicit evidence requirements before raising limits."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\";\"io\")\nvar ErrTODO=errors.New(\"TODO: implement release boundaries\")\ntype Counts struct { Vertices,OriginalArcs,ResidualArcs int64 }\nfunc Estimate(vertices,edges,horizon int64)(Counts,error){ // TODO: checked arithmetic from published formulas\n return Counts{},ErrTODO\n}\nfunc Run(args []string,input io.Reader,output io.Writer)error{ // TODO: decode count fixture and format checked estimates\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport \"testing\"\nfunc TestEstimateAcceptance(t *testing.T){\n t.Skip(\"TODO: remove when implementing budgets; add overflow and refusal cases\")\n c,e:=Estimate(3,2,3)\n if e!=nil||c.Vertices!=36||c.OriginalArcs!=51||c.ResidualArcs!=102{t.Fatalf(\"%+v %v\",c,e)}\n}\n",
+    "testdata/budget.json": "{\"Vertices\":3,\"Edges\":2,\"Horizon\":3}\n"
+  }
+}

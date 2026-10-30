@@ -1,0 +1,129 @@
+{
+  "ID": "P09",
+  "Slug": "p09-capacity-through-time",
+  "Title": "Capacity Through Time",
+  "Kind": "preparation",
+  "Stage": "03 · Exact optimization",
+  "Hours": 16,
+  "Depends": [
+    "P08"
+  ],
+  "Summary": "Build a time-expanded network that models room occupancy, waiting and one shared use of every undirected tunnel per turn.",
+  "Overview": "<p>Build a model compiler: given a colony graph, an ant count and a deadline T, emit a directed capacity network for P08. The network answers whether all ants can reach end by T. The deliverable includes metadata linking network arcs back to rooms and turns, a printed small-network inventory and a written correspondence argument.</p><p>Reuse P06's batch semantics and P08's integral flow engine. The new concepts are vertex splitting, time layers, holdovers and a shared tunnel gadget. This modelling project is separate from searching for the best deadline, which comes in P10.</p>",
+  "Reading": [
+    {
+      "Title": "Princeton Algorithms: Maximum Flow",
+      "URL": "https://algs4.cs.princeton.edu/64maxflow/",
+      "Section": "Capacities; integral flow; applications",
+      "Why": "Apply a generic capacity engine to a different domain.",
+      "Mandatory": true
+    },
+    {
+      "Title": "MIT 6.854 maxflow notes",
+      "URL": "https://courses.csail.mit.edu/6.854/19/Scribe/s6-maxflow/s6-maxflow.html",
+      "Section": "Integrality and augmenting-path invariants",
+      "Why": "Understand why one integral unit can represent one ant trajectory.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Official lem-in subject",
+      "URL": "https://github.com/01-edu/public/tree/master/subjects/lem-in",
+      "Section": "Instructions: room and tunnel limits; Usage Example 2",
+      "Why": "Keep the model aligned with simultaneous pipelines.",
+      "Mandatory": true
+    },
+    {
+      "Title": "Go slices and maps",
+      "URL": "https://go.dev/doc/effective_go",
+      "Section": "Slices; Maps",
+      "Why": "Keep model IDs and metadata explicit without name-dependent behavior.",
+      "Mandatory": false
+    }
+  ],
+  "Refresher": "<p>A static max-flow graph measures throughput, not a completion deadline. Time expansion gives each room a copy at every boundary k=0..T. A unit flow travels from start at time 0 to end at time T.</p><p>Split each room-time copy into in and out nodes. The in→out arc has capacity 1 for an ordinary room and n for start/end. A holdover out(v,k)→in(v,k+1) represents waiting and uses the same boundary occupancy limits.</p><p>For each physical tunnel {u,v} and turn k→k+1, create two gadget nodes ein/eout with one capacity-1 bottleneck ein→eout. Connect out(u,k) and out(v,k) into ein; connect eout to in(u,k+1) and in(v,k+1). All gadget connector capacities are 1. Both directions share the bottleneck, so an opposing swap cannot consume the tunnel twice.</p><p>The gadget also permits entering and leaving on the same side. Interpret that as waiting, not a self-tunnel move, and normalize it to the holdover during extraction. It cannot create extra movement capacity. Do not add gadget entry connectors from end: end is absorbing, while its holdovers retain arrivals through T.</p>",
+  "Spec": "<h2>Network contract</h2><ol><li>Implement <code>Expand</code> for a validated undirected graph, distinct terminals, positive n and nonnegative T. Return nodes, original arcs, source/sink IDs and arc metadata.</li><li>Create two nodes for every (room,k), k=0..T, with capacity 1 or n as described. Use source=in(start,0) and sink=out(end,T); cap total requested flow at n.</li><li>Create holdovers for every room across adjacent time layers, capacity 1 for ordinary rooms and n at terminals. An ant that arrives early stays at end; no real movement leaves end.</li><li>Create one shared capacity-1 gadget per undirected tunnel per time step. Omit endpoint-entry connectors from end. Endpoint output connectors may lead to end or back to the same endpoint. Preserve physical tunnel identity and time in metadata.</li><li>Never model an undirected tunnel as two independent capacity-1 movement arcs: that would allow a forbidden opposing swap. Never use n as a direct start-end tunnel's capacity.</li><li>Node IDs and original arc insertion order are deterministic from P04's canonical room and edge ordering. Metadata distinguishes room, wait, connector and bottleneck arcs without trying to infer meaning from numeric IDs later.</li><li>Before allocation, calculate checked upper counts: Vt=2(T+1)V+2TE and Et≤(2T+1)V+5TE original arcs. Residual storage doubles Et. Reject a configured budget breach as resource exhaustion, not malformed colony or infeasible deadline.</li></ol><h2>Correspondence argument</h2><p>A legal schedule gives integral flow by following room splits, waits and each moved tunnel gadget; continue early arrivals through end holdovers. Capacities follow from batch room occupancy and shared tunnel use. Conversely, integral value-n flow decomposes into n source-sink walks in the original time DAG. Read each layer transition as a move or wait; normalize same-side gadget uses into waits. Room splits and bottlenecks then enforce all P06 constraints. No flow means fewer than n ants can meet that deadline. Absorbing end is without loss: keeping an arrived ant there frees rather than consumes nonterminal resources.</p>",
+  "Components": [
+    {
+      "Slug": "room-layers",
+      "Title": "Compile room-time capacity",
+      "Goal": "Represent occupancy at boundaries rather than limiting only incoming edges.",
+      "Before": [
+        "At which times must an ordinary room have capacity one?",
+        "Why do early arrivals need end holdovers?"
+      ],
+      "Steps": [
+        "Assign stable in/out IDs for every room and layer.",
+        "Add split arcs and holdovers with terminal exceptions.",
+        "Print the node/arc inventory for a two-room one-turn model."
+      ],
+      "Hint": "Two ants entering an ordinary room through different tunnels can bypass per-edge limits. Only the shared room split prevents both occupying that room at a boundary.",
+      "Trace": "For s-a-t and T=2, mark a at times 0,1,2. One ant can occupy a at time 1; the second cannot also occupy it then.",
+      "Gate": "A flow test cannot deliver two ants through s-a-t by T=2, but can by T=3 after the tunnel gadgets are added."
+    },
+    {
+      "Slug": "shared-tunnel",
+      "Title": "Compile a shared undirected tunnel",
+      "Goal": "Enforce one use total across both directions and terminal edges.",
+      "Before": [
+        "Why are independent directed capacities insufficient?",
+        "Which gadget walks represent a wait rather than a real move?"
+      ],
+      "Steps": [
+        "Create exactly one bottleneck per physical tunnel-time pair.",
+        "Attach endpoint connectors with stable metadata.",
+        "Omit outbound end entry connectors and document same-side normalization."
+      ],
+      "Hint": "Count the bottleneck crossing, not just the two endpoint choices. Unlimited start occupancy must not allow two units across s-t in one turn.",
+      "Trace": "For a direct s-t graph, T=1 carries at most one and T=3 carries at most three. For a-b, opposing moves compete for the same bottleneck.",
+      "Gate": "Tests explicitly reject double direct-edge throughput and a two-direction same-tunnel use."
+    },
+    {
+      "Slug": "correspondence",
+      "Title": "Audit the reduction and storage bounds",
+      "Goal": "Make the deadline question mathematically and operationally precise.",
+      "Before": [
+        "Can a same-side gadget path be replaced by a wait without violating occupancy?",
+        "Which arcs belong to the original DAG, and which are residual bookkeeping?"
+      ],
+      "Steps": [
+        "Write schedule→flow and flow→schedule arguments separately.",
+        "Validate metadata and monotonically increasing time transitions.",
+        "Estimate Vt, Et and residual arcs before allocating; return a distinct budget error."
+      ],
+      "Hint": "Positive final original flow is decomposed on the forward time DAG. Do not interpret reverse residual arcs as trajectories. Same-side gadget normalization preserves both endpoint occupancies.",
+      "Trace": "Map the two-ant three-turn s-a-t pipeline to the network, including a start wait for ant2 and end wait for ant1.",
+      "Gate": "A reviewer can trace every unit through each time boundary, identify the shared tunnel bottleneck and explain why the model is exact under the academy turn policy."
+    }
+  ],
+  "Run": "go test ./...\ngo vet ./...\ngo run . testdata/deadline.json",
+  "Verification": "<ul><li>s-a-t, n=2: T=2 max flow 1; T=3 max flow 2.</li><li>Direct s-t, n=3: T=2 max flow 2; T=3 max flow 3.</li><li>Two length-two disjoint branches, n=2: T=2 max flow 2, with both arriving at end together.</li><li>A stationary occupied ordinary room blocks another arrival even if incoming tunnels differ.</li><li>Both directional uses of one tunnel-time share the bottleneck.</li><li>A same-side gadget traversal is extracted as a wait and never printed as a self move.</li><li>Counts just above a configured network budget produce a resource error before allocation; this is not deadline infeasibility.</li></ul><h2>Exit gate</h2><p>Provide an annotated tiny network, the two-way correctness argument and countertests that fail if room splitting or the shared bottleneck is removed.</p>",
+  "Engineering": [
+    "Why does static max flow alone fail to answer the minimum completion-turn question?",
+    "Which precise rule requires vertex splitting rather than edge capacities alone?",
+    "What would two independent directed tunnel arcs allow that upstream forbids?",
+    "Why is a same-side gadget traversal harmless only when normalized correctly?",
+    "How can terminal holdover capacity and terminal tunnel capacity be different?",
+    "Why does a failed model allocation provide no evidence that a deadline is infeasible?",
+    "What would change if ants could traverse two tunnels during one turn?"
+  ],
+  "Practical": [
+    "Draw all room copies for s-a-t at T=2.",
+    "Calculate the upper Vt and Et counts by hand for V=3,E=2,T=3.",
+    "Remove a room split in a local experiment and exhibit the collision it permits.",
+    "Replace a shared gadget by two directed arcs and exhibit the forbidden swap.",
+    "Trace an early arrival through end holdovers.",
+    "Add a same-side gadget normalization test."
+  ],
+  "Extras": [
+    "Add distance-based pruning using P05 distances. Prove it removes only states that cannot contribute by T.",
+    "Export model metadata to a readable Go-generated text table for debugging.",
+    "Cache canonical physical edges so every time layer shares the same ordering policy.",
+    "Compare full rebuilds with an incremental-layer model while preserving source/sink and residual correctness.",
+    "Write a proof-oriented test suite that deliberately removes each modelling constraint and records a tiny failing witness."
+  ],
+  "Files": {
+    "core.go": "package main\nimport (\"errors\";\"io\")\nvar ErrTODO=errors.New(\"TODO: implement time expansion\")\nvar ErrBudget=errors.New(\"resource limit exceeded\")\ntype Graph struct { Adj [][]int }\ntype ArcSpec struct { From,To,Capacity int; Kind string; Time,RoomA,RoomB int }\ntype Model struct { Vertices,Source,Sink int; Arcs []ArcSpec }\ntype Budget struct { Vertices,ResidualArcs int }\nfunc Expand(g Graph,start,end,ants,horizon int,budget Budget)(Model,error){ // TODO: checked counts, room splits, holds and shared tunnel gadgets\n return Model{},ErrTODO\n}\nfunc Run(args []string,input io.Reader,output io.Writer)error{ // TODO: compile fixture and report model inventory\n return ErrTODO\n}\n",
+    "core_test.go": "package main\nimport \"testing\"\nfunc TestExpansionAcceptance(t *testing.T){\n t.Skip(\"TODO: remove when implementing model; add flow feasibility tests using P08\")\n m,e:=Expand(Graph{Adj:[][]int{{1},{0}}},0,1,3,1,Budget{1000,10000})\n if e!=nil||m.Vertices!=10||len(m.Arcs)==0{t.Fatalf(\"%+v %v\",m,e)}\n}\n",
+    "testdata/deadline.json": "{\"Adj\":[[1],[0,2],[1]],\"Start\":0,\"End\":2,\"Ants\":2,\"Horizon\":3}\n"
+  }
+}
